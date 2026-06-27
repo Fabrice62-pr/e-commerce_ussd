@@ -15,6 +15,9 @@ class USSDSession(models.Model):
     # Panier : liste d'articles, ex. [{"product_id": 1, "qty": 2}, ...]
     cart = models.JSONField("Panier", default=list, blank=True)
     state = models.CharField("Écran courant", max_length=50, blank=True)
+    # Contexte de navigation, ex. {"category_id": 3, "product_ids": [5, 8, 12]}
+    # (mémorise la correspondance entre les numéros affichés et les objets en base)
+    context = models.JSONField("Contexte", default=dict, blank=True)
     created_at = models.DateTimeField("Créée le", auto_now_add=True)
     updated_at = models.DateTimeField("Mise à jour le", auto_now=True)
 
