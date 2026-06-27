@@ -58,7 +58,7 @@ données, et un document récapitulatif par phase de développement.
 
 - [x] Phase 0 — Cadrage (spécifications, menus, modèles)
 - [x] Phase 1 — Socle technique (Django + Docker + PostgreSQL + Git)
-- [ ] Phase 2 — Modèles & interface d'administration
+- [x] Phase 2 — Modèles & interface d'administration
 - [ ] Phase 3 — Moteur USSD
 - [ ] Phase 4 — Intégration Africa's Talking
 - [ ] Phase 5 — Paiement (code de validation)
