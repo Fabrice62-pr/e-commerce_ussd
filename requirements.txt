@@ -1,0 +1,7 @@
+# Dépendances Python du projet e-commerce USSD
+# (versions à support long / compatibles, installées dans l'image Docker)
+
+Django>=5.2,<5.3              # Framework web (version LTS)
+psycopg[binary]>=3.2,<4       # Connecteur PostgreSQL (psycopg 3)
+djangorestframework>=3.15,<4  # API REST — utilisé pour le webhook USSD (Phase 3)
+gunicorn>=22,<24              # Serveur WSGI de production

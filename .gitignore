@@ -1,0 +1,28 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Environnements virtuels ---
+.venv/
+venv/
+env/
+
+# --- Django ---
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# --- Secrets / configuration locale ---
+.env
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

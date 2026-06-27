@@ -1,0 +1,14 @@
+# Fichiers à ne pas envoyer dans l'image Docker (build plus rapide)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.git/
+.gitignore
+*.md
+docs/
+staticfiles/
+media/
+.vscode/
+.idea/
