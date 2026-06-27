@@ -76,7 +76,7 @@
 | `customer` | ForeignKey(CustomerUSSD) | `on_delete=PROTECT` |
 | `status` | CharField (choices) | voir statuts ci-dessous |
 | `total_amount` | PositiveIntegerField | recalculé depuis les lignes |
-| `validation_code` | CharField **unique** | ex. `MTS-7F3A`, généré à la création (RG4) |
+| `validation_code` | CharField **unique** | ex. `A7K2M9`, généré à la création (RG4) |
 | `is_paid` | BooleanField | passe à `True` à la validation du code |
 | `created_at` / `updated_at` | DateTimeField | |
 
@@ -107,7 +107,7 @@
 
 1. **Panier multi-produits** (vrai panier via `USSDSession.cart`). ✅
 2. **Décrément du stock à la validation du paiement** (quand l'agent saisit le code dans l'admin), pas à la création de la commande. Contrôle de disponibilité à l'ajout au panier et à la confirmation. ⚠️ Survente possible sur le dernier article — acceptable pour le prototype.
-3. **`validation_code`** : format court et lisible `MTS-XXXX` (4 caractères alphanumériques), unique, à usage unique.
+3. **`validation_code`** : code **alphanumérique de 6 caractères** (ex. `A7K2M9`), sans préfixe, toujours avec au moins une lettre et un chiffre, sans caractères ambigus (0/O, 1/I). Unique, à usage unique.
 4. **Pas de PIN client** : identification par `phone_number` seul. ✅
 
 ---

@@ -37,7 +37,7 @@
  │ 1. Riz 12000  │                     ┌─────────────────┐
  │ 2. Huile 3500 │                     │  CONFIRMATION   │
  │ 0. Retour     │                     │ Commande créée  │
- └──────┬────────┘                     │ Code: MTS-7F3A  │
+ └──────┬────────┘                     │ Code: A7K2M9    │
    "1"  │                              │ Payez en agence │
         ▼                              │     (END)       │
  ┌───────────────┐                     └─────────────────┘
@@ -117,7 +117,7 @@ Total: 19000 F
 ```
 END Commande #102 enregistree.
 Montant: 19000 F
-Code de paiement: MTS-7F3A
+Code de paiement: A7K2M9
 Presentez ce code en agence pour payer.
 ```
 

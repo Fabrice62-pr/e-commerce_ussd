@@ -6,14 +6,21 @@ from catalog.models import Product
 
 
 def generate_validation_code():
-    """Génère un code de validation court et lisible, ex. « MTS-7F3A ».
+    """Génère un code de validation alphanumérique de 6 caractères, ex. « A7K2M9 ».
 
-    On évite les caractères ambigus (0/O, 1/I) pour faciliter la dictée au comptoir.
-    L'unicité est garantie par le champ `unique=True` + une nouvelle tentative si collision.
+    - Toujours un mélange : au moins une lettre ET au moins un chiffre.
+    - On évite les caractères ambigus (0/O, 1/I) pour faciliter la dictée au comptoir.
+    - L'unicité est garantie par le champ `unique=True` + une nouvelle tentative
+      en cas de collision (voir Order.save).
     """
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    suffix = "".join(secrets.choice(alphabet) for _ in range(4))
-    return f"MTS-{suffix}"
+    letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    digits = "23456789"
+    alphabet = letters + digits
+    while True:
+        code = "".join(secrets.choice(alphabet) for _ in range(6))
+        # On re-tire tant que le code n'a pas au moins une lettre et un chiffre.
+        if any(c in letters for c in code) and any(c in digits for c in code):
+            return code
 
 
 class CustomerUSSD(models.Model):

@@ -58,7 +58,7 @@ Le prototype doit être **démontrable à distance** et **reproductible** (Docke
 1. Le client compose `*384*XXXXX#`.
 2. Il navigue : `Acheter` → choisit une catégorie → choisit un produit → saisit la quantité.
 3. Il confirme le panier → la commande est créée au statut **EN_ATTENTE**.
-4. Le système génère et affiche un **code de validation** (ex. `MTS-7F3A`).
+4. Le système génère et affiche un **code de validation** (ex. `A7K2M9`).
 5. Le client paie en espèces auprès d'un agent ; l'agent saisit le code dans l'admin → commande **PAYEE**.
 6. Le client peut composer de nouveau le code USSD et choisir `Mes commandes` pour suivre le statut.
 
