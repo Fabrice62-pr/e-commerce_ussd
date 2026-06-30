@@ -1,27 +1,128 @@
 # Diagrammes du projet e-commerce USSD
 
-> Ce document présente la modélisation du système sous trois formes complémentaires :
-> 1. le **diagramme de classes UML** (vue orientée objet, proche du code Django) ;
-> 2. le **diagramme Entité-Association** (MCD, méthode MERISE) ;
-> 3. le **passage au schéma relationnel** (MLD : les tables de la base PostgreSQL).
+> Ce document présente la modélisation **complète** du système (parties déjà
+> développées **et** parties à venir), sous plusieurs formes complémentaires :
+> 1. le **diagramme de cas d'utilisation** (UML — vue fonctionnelle globale) ;
+> 2. le **diagramme de classes** complet (UML — vue structurelle) ;
+> 3. le **diagramme de séquence** du parcours d'achat (UML — vue dynamique) ;
+> 4. le **diagramme Entité-Association** (MCD, méthode MERISE) ;
+> 5. le **passage au schéma relationnel** (MLD : les tables PostgreSQL).
 >
-> Les diagrammes Mermaid s'affichent graphiquement sur GitHub ; une version ASCII
-> est fournie en complément.
+> Les éléments **non encore développés** sont annotés par phase : `Phase 4`
+> (Africa's Talking), `Phase 5` (paiement), `Phase 6` (rapports).
+>
+> Les diagrammes Mermaid s'affichent graphiquement sur GitHub ; des versions ASCII
+> sont fournies en complément.
 
 ---
 
-## 1. Diagramme de classes UML
+## 1. Diagramme de cas d'utilisation (UML)
 
-Vue orientée objet du système : les classes (modèles Django), leurs attributs,
-leurs méthodes et leurs associations.
+Vue d'ensemble des **acteurs** et de **toutes les fonctionnalités** du système.
+
+```mermaid
+flowchart LR
+    client([👤 Client USSD])
+    admin([👤 Administrateur])
+    agent([👤 Agent / Commerçant])
+    at([📡 Africa's Talking]):::ext
+
+    subgraph S[Système e-commerce USSD]
+        u1(Consulter le catalogue)
+        u2(Passer une commande)
+        u3(Obtenir un code de paiement)
+        u4(Suivre ses commandes)
+        u5(Gérer produits et catégories - CRUD)
+        u6(Consulter les commandes)
+        u7(Valider un paiement - Phase 5)
+        u8(Consulter les rapports - Phase 6)
+    end
+
+    client --- u1
+    client --- u2
+    client --- u3
+    client --- u4
+    admin --- u5
+    admin --- u6
+    admin --- u7
+    admin --- u8
+    agent --- u7
+    at -. relaie .- u1
+    at -. relaie .- u2
+
+    classDef ext fill:#eee,stroke:#999,stroke-dasharray:5 5;
+```
+
+### Cas d'utilisation par acteur
+
+| Acteur | Cas d'utilisation | État |
+|---|---|---|
+| **Client USSD** | Consulter le catalogue (catégories, produits) | ✅ fait |
+| | Passer une commande (panier multi-produits) | ✅ fait |
+| | Obtenir un code de paiement | ✅ fait |
+| | Suivre ses commandes | ✅ fait |
+| **Administrateur** | Gérer produits et catégories (CRUD) | ✅ fait |
+| | Consulter les commandes | ✅ fait |
+| | Valider un paiement (saisie du code, décrément du stock) | 🔜 Phase 5 |
+| | Consulter les rapports (CA, ventes, statuts) | 🔜 Phase 6 |
+| **Agent / Commerçant** | Valider un paiement au comptoir | 🔜 Phase 5 |
+| **Africa's Talking** | Relayer les requêtes USSD (passerelle externe) | 🔜 Phase 4 |
+
+---
+
+## 2. Diagramme de classes complet (UML)
+
+Vue structurelle de **tout le système** : acteurs, passerelle, webhook, moteur USSD,
+entités du domaine et services à venir.
 
 ```mermaid
 classDiagram
+    direction LR
+
+    %% ===== Acteurs / utilisateurs =====
+    class User {
+        <<Django auth>>
+        +String username
+        +String password
+        +bool is_staff
+        +bool is_superuser
+    }
+    class Administrateur {
+        <<acteur>>
+        +gerer_produits()
+        +valider_paiement(code)
+        +consulter_rapports()
+    }
+
+    %% ===== Passerelle & couche USSD =====
+    class AfricaTalkingGateway {
+        <<externe - Phase 4>>
+        +String sessionId
+        +String phoneNumber
+        +String text
+        +String serviceCode
+    }
+    class USSDCallbackView {
+        <<boundary / webhook>>
+        +post(request) HttpResponse
+    }
+    class USSDEngine {
+        <<control>>
+        +process_ussd(session_id, phone, text)
+        +show_home()
+        +show_categories()
+        +show_products()
+        +show_quantity()
+        +show_cart()
+        +show_my_orders()
+        +validate_order()
+    }
+
+    %% ===== Entités du domaine =====
     class Category {
         +BigAutoField id
         +CharField name
         +BooleanField is_active
-        +__str__()
     }
     class Product {
         +BigAutoField id
@@ -32,14 +133,12 @@ classDiagram
         +BooleanField is_active
         +DateTimeField created_at
         +is_available() bool
-        +__str__()
     }
     class CustomerUSSD {
         +BigAutoField id
         +CharField phone_number
         +CharField name
         +DateTimeField created_at
-        +__str__()
     }
     class Order {
         +BigAutoField id
@@ -51,7 +150,7 @@ classDiagram
         +DateTimeField updated_at
         +save()
         +update_total()
-        +__str__()
+        +valider_paiement() bool
     }
     class OrderItem {
         +BigAutoField id
@@ -59,7 +158,6 @@ classDiagram
         +PositiveIntegerField unit_price
         +PositiveIntegerField line_total
         +save()
-        +__str__()
     }
     class USSDSession {
         +BigAutoField id
@@ -70,72 +168,109 @@ classDiagram
         +JSONField context
         +DateTimeField created_at
         +DateTimeField updated_at
-        +__str__()
     }
 
+    %% ===== Services à venir =====
+    class PaiementService {
+        <<control - Phase 5>>
+        +valider(code_validation) bool
+        +decrementer_stock(order)
+    }
+    class RapportService {
+        <<control - Phase 6>>
+        +chiffre_affaires()
+        +commandes_par_statut()
+        +produits_les_plus_vendus()
+    }
+
+    %% ===== Relations d'usage (dépendances) =====
+    Administrateur --|> User
+    Administrateur ..> Product : CRUD
+    Administrateur ..> PaiementService : utilise
+    Administrateur ..> RapportService : consulte
+
+    AfricaTalkingGateway ..> USSDCallbackView : POST
+    USSDCallbackView ..> USSDEngine : process_ussd()
+    USSDEngine ..> USSDSession : lit / écrit
+    USSDEngine ..> Category : parcourt
+    USSDEngine ..> Product : parcourt
+    USSDEngine ..> CustomerUSSD : crée
+    USSDEngine ..> Order : crée
+
+    PaiementService ..> Order : valide
+    PaiementService ..> Product : décrémente stock
+    RapportService ..> Order : agrège
+
+    %% ===== Associations structurelles (le modèle de données) =====
     Category "1" --> "0..*" Product : contient
     CustomerUSSD "1" --> "0..*" Order : passe
     Order "1" *-- "1..*" OrderItem : comprend
     Product "1" --> "0..*" OrderItem : référencé par
 ```
 
-> Note : la relation `Order` → `OrderItem` est une **composition** (losange plein) :
-> une ligne de commande n'existe pas sans sa commande (suppression en cascade).
-> Les autres relations sont des **associations** protégées (`on_delete=PROTECT`) :
-> on ne peut pas supprimer une catégorie, un client ou un produit encore utilisé.
+### Légende des relations
 
-### Version ASCII
+| Notation | Signification |
+|---|---|
+| `--|>` | Héritage (Administrateur **est un** User Django) |
+| `..>` | Dépendance / utilisation (une classe en appelle une autre) |
+| `-->` | Association (lien structurel entre entités) |
+| `*--` | **Composition** : `OrderItem` n'existe pas sans son `Order` (cascade) |
+| `<<...>>` | Stéréotype (rôle de la classe) ; `Phase N` = à développer |
 
-```
-+-----------------+           +------------------+
-|   Category      | 1     0..*|     Product      |
-|-----------------|----------<|------------------|
-| id              | contient  | id               |
-| name            |           | name             |
-| is_active       |           | price            |
-+-----------------+           | stock            |
-                              | description      |
-                              | is_active        |
-                              | created_at       |
-                              | +is_available()  |
-                              +---------+--------+
-                                        | 1
-                                        | référencé par
-                                        | 0..*
-+------------------+          +---------v--------+
-|  CustomerUSSD    | 1   0..* |    OrderItem     |
-|------------------|          |------------------|
-| id               |          | id               |
-| phone_number     |          | quantity         |
-| name             |          | unit_price       |
-| created_at       |          | line_total       |
-+--------+---------+          | +save()          |
-         | 1                  +---------+--------+
-         | passe                        | 1..*
-         | 0..*                         | comprend (composition)
-+--------v---------+ 1                   | 1
-|     Order        |---------------------+
-|------------------|
-| id               |       +-------------------+
-| status           |       |   USSDSession     |   (entité indépendante :
-| total_amount     |       |-------------------|    panier / etat de session,
-| validation_code  |       | id                |    reliée logiquement au client
-| is_paid          |       | session_id        |    par le numero de telephone,
-| created_at       |       | phone_number      |    sans cle etrangere)
-| updated_at       |       | cart (JSON)       |
-| +save()          |       | state             |
-| +update_total()  |       | context (JSON)    |
-+------------------+       | created_at        |
-                           | updated_at        |
-                           +-------------------+
+> **Couches** (architecture) :
+> - *Acteurs* : `User`, `Administrateur` (et le Client, représenté par `CustomerUSSD`).
+> - *Frontière (boundary)* : `AfricaTalkingGateway` (externe), `USSDCallbackView` (webhook).
+> - *Contrôle (control)* : `USSDEngine`, `PaiementService`, `RapportService`.
+> - *Entités du domaine* : `Category`, `Product`, `CustomerUSSD`, `Order`, `OrderItem`, `USSDSession`.
+
+---
+
+## 3. Diagramme de séquence (UML) — parcours d'achat complet
+
+Vue dynamique : du composé USSD jusqu'au paiement validé, **incluant Africa's
+Talking (Phase 4) et la validation du paiement (Phase 5)**.
+
+```mermaid
+sequenceDiagram
+    actor Client as 👤 Client (téléphone)
+    participant AT as 📡 Africa's Talking
+    participant View as 🌐 Webhook /ussd/callback/
+    participant Engine as ⚙️ USSDEngine
+    participant DB as 🗄️ PostgreSQL
+    actor Agent as 👤 Agent / Admin
+
+    Client->>AT: compose *384*XXXXX#
+    AT->>View: POST (sessionId, phoneNumber, text="")
+    View->>Engine: process_ussd(...)
+    Engine->>DB: lit catégories / produits
+    Engine-->>View: CON menu d'accueil
+    View-->>AT: CON menu
+    AT-->>Client: affiche le menu
+
+    Note over Client,AT: navigation : catégorie → produit → quantité
+
+    Client->>AT: valide le panier (choix "1")
+    AT->>View: POST (text="...*1")
+    View->>Engine: process_ussd(...)
+    Engine->>DB: crée Order + OrderItem, génère le code
+    Engine-->>View: END + code de paiement
+    View-->>AT: END (ex. 9V7RKT)
+    AT-->>Client: affiche le code de paiement
+
+    Note over Client,Agent: paiement hors-ligne (espèces)
+
+    Client->>Agent: présente le code 9V7RKT + espèces
+    Agent->>DB: valide le paiement (PaiementService, Phase 5)
+    DB-->>DB: Order.is_paid=True, statut=PAYEE, stock décrémenté
+    DB-->>Agent: confirmation
 ```
 
 ---
 
-## 2. Diagramme Entité-Association (MCD — MERISE)
+## 4. Diagramme Entité-Association (MCD — MERISE)
 
-Modèle Conceptuel de Données. Les cardinalités sont notées **(min, max)** selon la
-convention MERISE.
+Modèle Conceptuel de Données. Cardinalités notées **(min, max)** (convention MERISE).
 
 ```mermaid
 erDiagram
@@ -197,34 +332,28 @@ erDiagram
 
 ### Détail des associations et cardinalités (MERISE)
 
-| Association | Entité 1 | Cardinalité | Entité 2 | Cardinalité | Sens |
-|---|---|---|---|---|---|
-| **APPARTENIR** | PRODUIT | (1,1) | CATEGORIE | (0,n) | Un produit appartient à 1 catégorie ; une catégorie regroupe 0..n produits |
-| **PASSER** | COMMANDE | (1,1) | CLIENT_USSD | (0,n) | Une commande est passée par 1 client ; un client passe 0..n commandes |
-| **CONTENIR / CONCERNER** | COMMANDE | (1,n) | PRODUIT | (0,n) | Une commande contient 1..n produits ; un produit figure dans 0..n commandes |
+| Association | Entité 1 | Cardinalité | Entité 2 | Cardinalité |
+|---|---|---|---|---|
+| **APPARTENIR** | PRODUIT | (1,1) | CATEGORIE | (0,n) |
+| **PASSER** | COMMANDE | (1,1) | CLIENT_USSD | (0,n) |
+| **CONTENIR** | COMMANDE | (1,n) | PRODUIT | (0,n) |
 
 > **Point important (MERISE)** : l'association **CONTENIR** entre `COMMANDE` et
 > `PRODUIT` est de type **plusieurs-à-plusieurs (n,m)** et porte des **données
-> propres** : la *quantité*, le *prix unitaire* (figé à l'achat) et le *total de la
-> ligne*. Au passage au relationnel, cette association devient une table à part
-> entière : `LIGNE_COMMANDE` (voir section 3).
+> propres** (*quantité*, *prix unitaire* figé, *total de ligne*). Au passage au
+> relationnel, elle devient la table `LIGNE_COMMANDE` (section 5).
 
-> **Cas de `SESSION_USSD`** : c'est une entité **technique et indépendante** (elle
-> stocke le panier en cours et l'état de navigation d'une session USSD). Elle n'a pas
-> d'association formelle ; elle est reliée *logiquement* au client par le numéro de
-> téléphone, mais sans clé étrangère (le panier est volatile, antérieur à la création
-> de la commande).
+> **`SESSION_USSD`** : entité **technique et indépendante** (panier + état de
+> navigation). Reliée *logiquement* au client par le numéro de téléphone, sans clé
+> étrangère (le panier est volatile, antérieur à la commande).
 
 ---
 
-## 3. Passage au schéma relationnel (MLD)
+## 5. Passage au schéma relationnel (MLD)
 
-Règles de passage appliquées :
-- Chaque **entité** devient une **table**.
-- Chaque **association (1,n)** se traduit par une **clé étrangère** dans la table du
-  côté « plusieurs ».
-- L'**association (n,m)** *CONTENIR* devient une **table de jonction**
-  (`LIGNE_COMMANDE`) portant ses attributs propres.
+Règles de passage : chaque entité → une table ; chaque association (1,n) → une clé
+étrangère côté « plusieurs » ; l'association (n,m) *CONTENIR* → table de jonction
+`LIGNE_COMMANDE`.
 
 Légende : `#` = clé primaire, `=>` = clé étrangère.
 
@@ -253,15 +382,15 @@ SESSION_USSD (#id_session, session_id, telephone, panier, etat, contexte,
 | Table | Contrainte |
 |---|---|
 | `CATEGORIE` | `nom` UNIQUE |
-| `PRODUIT` | `prix ≥ 0`, `stock ≥ 0` ; suppression de la catégorie interdite si utilisée (PROTECT) |
+| `PRODUIT` | `prix ≥ 0`, `stock ≥ 0` ; catégorie non supprimable si utilisée (PROTECT) |
 | `CLIENT_USSD` | `telephone` UNIQUE |
-| `COMMANDE` | `code_validation` UNIQUE ; `statut` ∈ {EN_ATTENTE, PAYEE, PREPAREE, LIVREE, ANNULEE} ; suppression du client interdite si utilisé (PROTECT) |
-| `LIGNE_COMMANDE` | `total_ligne = quantite × prix_unitaire` ; suppression en cascade avec la commande ; suppression du produit interdite si utilisé (PROTECT) |
+| `COMMANDE` | `code_validation` UNIQUE ; `statut` ∈ {EN_ATTENTE, PAYEE, PREPAREE, LIVREE, ANNULEE} ; client non supprimable si utilisé (PROTECT) |
+| `LIGNE_COMMANDE` | `total_ligne = quantite × prix_unitaire` ; cascade avec la commande ; produit non supprimable si utilisé (PROTECT) |
 | `SESSION_USSD` | `session_id` UNIQUE |
 
-### Correspondance noms MERISE ↔ noms Django
+### Correspondance noms MERISE ↔ Django ↔ PostgreSQL
 
-| MERISE (ce document) | Modèle Django | Table PostgreSQL |
+| MERISE | Modèle Django | Table PostgreSQL |
 |---|---|---|
 | `CATEGORIE` | `Category` | `catalog_category` |
 | `PRODUIT` | `Product` | `catalog_product` |
@@ -270,9 +399,7 @@ SESSION_USSD (#id_session, session_id, telephone, panier, etat, contexte,
 | `LIGNE_COMMANDE` | `OrderItem` | `orders_orderitem` |
 | `SESSION_USSD` | `USSDSession` | `ussd_ussdsession` |
 
-> **Remarque sur la clé de `LIGNE_COMMANDE`** : en MERISE « pur », la table issue
-> d'une association n,m a souvent pour clé la **combinaison** des clés étrangères
-> (`id_commande`, `id_produit`). Dans l'implémentation Django, on conserve une **clé
-> primaire technique** (`id_ligne`, auto-incrémentée) — plus simple à manipuler et
-> permettant, si besoin, plusieurs lignes pour le même produit. Les deux approches
-> sont équivalentes sur le plan fonctionnel.
+> **Clé de `LIGNE_COMMANDE`** : en MERISE « pur », la clé serait la combinaison
+> (`id_commande`, `id_produit`). L'implémentation Django conserve une **clé technique**
+> auto-incrémentée (`id_ligne`) — plus simple et autorisant plusieurs lignes pour un
+> même produit. Les deux approches sont fonctionnellement équivalentes.
