@@ -270,7 +270,64 @@ sequenceDiagram
 
 ## 4. Diagramme Entité-Association (MCD — MERISE)
 
-Modèle Conceptuel de Données. Cardinalités notées **(min, max)** (convention MERISE).
+Modèle Conceptuel de Données. Les **associations** (APPARTENIR, PASSER, CONTENIR)
+sont dessinées explicitement (ovales), avec les cardinalités notées **(min, max)**
+selon la convention MERISE.
+
+### 4.1 Le MCD (notation MERISE)
+
+```
+   +-----------------+                            +------------------+
+   |   CATEGORIE     |                            |   CLIENT_USSD    |
+   |-----------------|                            |------------------|
+   | id_categorie    |                            | id_client        |
+   | nom             |                            | telephone        |
+   | actif           |                            | nom              |
+   +--------+--------+                            | date_creation    |
+            |                                      +--------+---------+
+         (0,n)                                          (0,n)
+            |                                              |
+       <  APPARTENIR  >                              <  PASSER  >
+            |                                              |
+         (1,1)                                          (1,1)
+            |                                              |
+   +--------+--------+                            +--------+---------+
+   |    PRODUIT      |                            |    COMMANDE      |
+   |-----------------|       +-------------+      |------------------|
+   | id_produit      |       |  CONTENIR   |      | id_commande      |
+   | nom             |(0,n)  |-------------|(1,n) | statut           |
+   | prix            +-------< quantite    >------+ montant_total    |
+   | stock           |       | prix_unitaire|     | code_validation  |
+   | description     |       | total_ligne |      | payee            |
+   | actif           |       +-------------+      | date_creation    |
+   | date_creation   |                            | date_maj         |
+   +-----------------+                            +------------------+
+
+
+   +-------------------+
+   |   SESSION_USSD    |   Entité technique INDÉPENDANTE (panier + état de
+   |-------------------|   navigation d'une session USSD). Aucune association :
+   | id_session        |   reliée seulement de façon logique au client par le
+   | session_id        |   numéro de téléphone, sans clé étrangère (le panier
+   | telephone         |   est volatile, antérieur à la création de la commande).
+   | panier (JSON)     |
+   | etat              |
+   | contexte (JSON)   |
+   | date_creation     |
+   | date_maj          |
+   +-------------------+
+```
+
+Lecture des cardinalités :
+- **APPARTENIR** : un PRODUIT appartient à **(1,1)** une CATEGORIE ; une CATEGORIE
+  regroupe **(0,n)** produits.
+- **PASSER** : une COMMANDE est passée par **(1,1)** un CLIENT ; un CLIENT passe
+  **(0,n)** commandes.
+- **CONTENIR** : une COMMANDE contient **(1,n)** produits ; un PRODUIT figure dans
+  **(0,n)** commandes. Cette association **porte des données propres** (`quantite`,
+  `prix_unitaire`, `total_ligne`) → c'est une association **n,m** porteuse.
+
+### 4.2 Le même MCD en notation ER (Mermaid, affiché sur GitHub)
 
 ```mermaid
 erDiagram
@@ -351,9 +408,14 @@ erDiagram
 
 ## 5. Passage au schéma relationnel (MLD)
 
-Règles de passage : chaque entité → une table ; chaque association (1,n) → une clé
-étrangère côté « plusieurs » ; l'association (n,m) *CONTENIR* → table de jonction
-`LIGNE_COMMANDE`.
+Règles de passage du MCD (section 4) vers le modèle relationnel :
+
+| Élément du MCD | Règle appliquée | Résultat relationnel |
+|---|---|---|
+| Chaque **entité** | → une **table** | CATEGORIE, PRODUIT, CLIENT_USSD, COMMANDE, SESSION_USSD |
+| **APPARTENIR** (1,1)–(0,n) | la clé de CATEGORIE migre dans PRODUIT | `id_categorie` => CATEGORIE dans PRODUIT |
+| **PASSER** (1,1)–(0,n) | la clé de CLIENT_USSD migre dans COMMANDE | `id_client` => CLIENT_USSD dans COMMANDE |
+| **CONTENIR** (1,n)–(0,n) **porteuse** | une association **n,m** devient une **table de jonction** qui hérite des clés des deux entités + ses attributs propres | nouvelle table `LIGNE_COMMANDE` (`quantite`, `prix_unitaire`, `total_ligne`, `id_commande`, `id_produit`) |
 
 Légende : `#` = clé primaire, `=>` = clé étrangère.
 
