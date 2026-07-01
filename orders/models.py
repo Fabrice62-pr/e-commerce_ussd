@@ -1,8 +1,21 @@
 import secrets
 
-from django.db import models
+from django.db import models, transaction
+from django.db.models import F
 
 from catalog.models import Product
+
+
+class PaiementError(Exception):
+    """Erreur lors de la validation d'un paiement."""
+
+
+class DejaPayeeError(PaiementError):
+    """La commande a déjà été payée (double validation interdite)."""
+
+
+class StockInsuffisantError(PaiementError):
+    """Le stock d'un produit est devenu insuffisant au moment du paiement."""
 
 
 def generate_validation_code():
@@ -87,6 +100,50 @@ class Order(models.Model):
         """Recalcule le montant total à partir des lignes de commande."""
         self.total_amount = sum(item.line_total for item in self.items.all())
         self.save(update_fields=["total_amount", "updated_at"])
+
+    def valider_paiement(self):
+        """Valide le paiement de la commande (agent au comptoir).
+
+        Effets : statut -> PAYEE, is_paid -> True, et **décrément du stock** des
+        produits commandés (décision de conception : le stock baisse au paiement,
+        pas à la commande).
+
+        Lève :
+          - DejaPayeeError si la commande est déjà payée ;
+          - StockInsuffisantError si le stock d'un produit est devenu insuffisant.
+
+        L'opération est atomique : en cas d'erreur, rien n'est modifié.
+        """
+        with transaction.atomic():
+            # Verrouille la commande pour éviter une double validation concurrente.
+            order = Order.objects.select_for_update().get(pk=self.pk)
+            if order.is_paid:
+                raise DejaPayeeError(f"La commande #{order.pk} est déjà payée.")
+
+            items = list(order.items.select_related("product"))
+
+            # 1) Vérifier la disponibilité du stock pour toutes les lignes.
+            for item in items:
+                if item.quantity > item.product.stock:
+                    raise StockInsuffisantError(
+                        f"Stock insuffisant pour « {item.product.name} » "
+                        f"(demandé {item.quantity}, disponible {item.product.stock})."
+                    )
+
+            # 2) Décrémenter le stock (décrément atomique via F()).
+            for item in items:
+                Product.objects.filter(pk=item.product_id).update(
+                    stock=F("stock") - item.quantity
+                )
+
+            # 3) Marquer la commande comme payée.
+            order.status = Order.Status.PAYEE
+            order.is_paid = True
+            order.save(update_fields=["status", "is_paid", "updated_at"])
+
+        # Refléter le nouvel état sur l'instance appelante.
+        self.status = Order.Status.PAYEE
+        self.is_paid = True
 
 
 class OrderItem(models.Model):

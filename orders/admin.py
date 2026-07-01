@@ -1,6 +1,12 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
-from .models import CustomerUSSD, Order, OrderItem
+from .models import (
+    CustomerUSSD,
+    DejaPayeeError,
+    Order,
+    OrderItem,
+    PaiementError,
+)
 
 
 @admin.register(CustomerUSSD)
@@ -38,8 +44,33 @@ class OrderAdmin(admin.ModelAdmin):
     readonly_fields = ("validation_code", "total_amount", "created_at", "updated_at")
     inlines = [OrderItemInline]
     list_select_related = ("customer",)
+    actions = ["action_valider_paiement"]
 
     def save_related(self, request, form, formsets, change):
         """Recalcule le montant total de la commande après l'enregistrement des lignes."""
         super().save_related(request, form, formsets, change)
         form.instance.update_total()
+
+    @admin.action(description="Valider le paiement (→ PAYEE, décrémente le stock)")
+    def action_valider_paiement(self, request, queryset):
+        """Valide le paiement des commandes sélectionnées.
+
+        Workflow agent : rechercher la commande par son code de paiement (champ de
+        recherche ci-dessus), la cocher, puis lancer cette action.
+        """
+        succes = 0
+        for order in queryset:
+            try:
+                order.valider_paiement()
+                succes += 1
+            except DejaPayeeError as err:
+                self.message_user(request, str(err), level=messages.WARNING)
+            except PaiementError as err:
+                self.message_user(request, f"Commande #{order.pk} : {err}", level=messages.ERROR)
+
+        if succes:
+            self.message_user(
+                request,
+                f"{succes} commande(s) validée(s) : statut PAYEE et stock décrémenté.",
+                level=messages.SUCCESS,
+            )
