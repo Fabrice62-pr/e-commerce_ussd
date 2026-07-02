@@ -12,7 +12,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data   # persiste les données
     ports:
-      - "5432:5432"
+      # Port Windows 5433 -> port 5432 du conteneur.
+      # (5432 est déjà utilisé par un PostgreSQL installé nativement sur Windows.)
+      - "5433:5432"
     healthcheck:
       # Indique à "web" que la base est réellement prête à recevoir des connexions
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
