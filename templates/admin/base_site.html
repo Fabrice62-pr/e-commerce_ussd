@@ -1,0 +1,11 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ title }} | MTS Shop{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">MTS Shop — Administration</a></h1>
+{% endblock %}
+
+{% block nav-global %}
+<a href="{% url 'rapports' %}" style="margin-left: 25px; color: #fff; font-weight: 600;">📊 Rapports</a>
+{% endblock %}

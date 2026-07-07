@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",  # formatage des nombres (séparateurs de milliers)
     # Bibliothèques tierces
     "rest_framework",
     # Applications du projet

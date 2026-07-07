@@ -1,0 +1,129 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rapports — MTS Shop</title>
+  <style>
+    :root {
+      --bg: #f4f6f8; --card: #fff; --ink: #1f2d3d; --muted: #6b7c93;
+      --accent: #2e7d5b; --accent2: #417690; --line: #e4e9ee; --warn: #d9822b;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+           background: var(--bg); color: var(--ink); }
+    header { background: var(--accent2); color: #fff; padding: 18px 24px;
+             display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    header a { color: #fff; text-decoration: none; font-size: .9rem; opacity: .9; }
+    header a:hover { opacity: 1; text-decoration: underline; }
+    main { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    h2 { font-size: 1rem; color: var(--muted); text-transform: uppercase;
+         letter-spacing: .04em; margin: 28px 0 12px; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            padding: 18px 20px; }
+    .card .label { color: var(--muted); font-size: .82rem; margin-bottom: 6px; }
+    .card .value { font-size: 1.7rem; font-weight: 700; }
+    .card .unit { font-size: .9rem; color: var(--muted); font-weight: 500; }
+    .card.accent { border-left: 4px solid var(--accent); }
+
+    .panel { background: var(--card); border: 1px solid var(--line);
+             border-radius: 12px; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .rank { color: var(--muted); width: 28px; }
+
+    .bar-row { display: grid; grid-template-columns: 160px 1fr 60px; align-items: center;
+               gap: 12px; margin-bottom: 10px; }
+    .bar-track { background: var(--line); border-radius: 6px; height: 18px; overflow: hidden; }
+    .bar-fill { background: var(--accent2); height: 100%; border-radius: 6px; }
+    .bar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: .9rem; }
+    .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+    footer { text-align: center; color: var(--muted); font-size: .8rem; padding: 24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📊 Rapports — MTS Shop</h1>
+    <a href="{% url 'admin:index' %}">← Retour à l'administration</a>
+  </header>
+
+  <main>
+    <!-- Indicateurs clés -->
+    <h2>Vue d'ensemble</h2>
+    <div class="cards">
+      <div class="card accent">
+        <div class="label">Chiffre d'affaires (encaissé)</div>
+        <div class="value">{{ data.chiffre_affaires|intcomma }} <span class="unit">F</span></div>
+      </div>
+      <div class="card">
+        <div class="label">Commandes (total)</div>
+        <div class="value">{{ data.nb_commandes|intcomma }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Commandes payées</div>
+        <div class="value">{{ data.nb_payees|intcomma }}</div>
+      </div>
+      <div class="card">
+        <div class="label">En attente de paiement</div>
+        <div class="value">{{ data.nb_en_attente|intcomma }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Panier moyen (payé)</div>
+        <div class="value">{{ data.panier_moyen|intcomma }} <span class="unit">F</span></div>
+      </div>
+      <div class="card">
+        <div class="label">Clients</div>
+        <div class="value">{{ data.nb_clients|intcomma }}</div>
+      </div>
+    </div>
+
+    <!-- Répartition par statut -->
+    <h2>Commandes par statut</h2>
+    <div class="panel">
+      {% for s in data.par_statut %}
+        <div class="bar-row">
+          <div>{{ s.statut }}</div>
+          <div class="bar-track"><div class="bar-fill" style="width: {{ s.pct }}%;"></div></div>
+          <div class="bar-val">{{ s.n }} ({{ s.pct }}%)</div>
+        </div>
+      {% empty %}
+        <div class="empty">Aucune commande pour le moment.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Produits les plus vendus -->
+    <h2>Produits les plus vendus (commandes payées)</h2>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th>Produit</th>
+            <th class="num">Quantité vendue</th>
+            <th class="num">Chiffre d'affaires</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in data.top_produits %}
+            <tr>
+              <td class="rank">{{ forloop.counter }}</td>
+              <td>{{ p.product__name }}</td>
+              <td class="num">{{ p.quantite|intcomma }}</td>
+              <td class="num">{{ p.ca|intcomma }} F</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">Aucune vente payée pour le moment.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer>MTS Group Africa — Prototype e-commerce USSD · Tableau de bord généré en temps réel</footer>
+</body>
+</html>

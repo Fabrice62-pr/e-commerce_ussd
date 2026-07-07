@@ -62,5 +62,5 @@ données, et un document récapitulatif par phase de développement.
 - [x] Phase 3 — Moteur USSD
 - [x] Phase 4 — Intégration Africa's Talking
 - [x] Phase 5 — Paiement (code de validation)
-- [ ] Phase 6 — Rapports
+- [x] Phase 6 — Rapports
 - [ ] Phase 7 — Documentation & déploiement
