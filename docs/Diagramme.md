@@ -482,6 +482,63 @@ erDiagram
 les permissions et le fonctionnement interne de Django ; aucune n'est liée par
 clé étrangère aux tables métier ci-dessus.
 
+### 4.4 Schéma entité-relation en tableaux (notation « patte d'oie »)
+
+Même modèle, présenté sous forme de tableaux reliés (comme un diagramme d'outil).
+Légende des cardinalités : **1** = un(e) seul(e) · **N** = plusieurs (côté « patte
+d'oie »). `PK` clé primaire · `FK` clé étrangère · `UK` unique.
+
+```
+  ┌─────────────────┐ 1      N ┌────────────────────┐ 1      N ┌────────────────────┐
+  │    CATEGORIE    │──────────│      PRODUIT       │──────────│     ORDERITEM      │
+  ├─────────────────┤ contient ├────────────────────┤ concerne ├────────────────────┤
+  │ PK  id          │          │ PK  id             │          │ PK  id             │
+  ├─────────────────┤          ├────────────────────┤          ├────────────────────┤
+  │     name  (UK)  │          │     name           │          │     quantity       │
+  │     is_active   │          │     price          │          │     unit_price     │
+  └─────────────────┘          │     stock          │          │     line_total     │
+                               │     description    │          │ FK  order_id       │
+                               │     is_active      │          │ FK  product_id     │
+                               │     created_at     │          └─────────┬──────────┘
+                               │ FK  category_id    │                    │ N
+                               └────────────────────┘                    │ comprend
+                                                                         │ 1
+  ┌─────────────────┐ 1      N ┌────────────────────┐                    │
+  │  CUSTOMER_USSD  │──────────│       ORDER        │────────────────────┘
+  ├─────────────────┤  passe   ├────────────────────┤
+  │ PK  id          │          │ PK  id             │
+  ├─────────────────┤          ├────────────────────┤
+  │     phone_number│          │     status         │
+  │           (UK)  │          │     total_amount   │
+  │     name        │          │     validation_code│
+  │     created_at  │          │            (UK)    │
+  └─────────────────┘          │     is_paid        │
+                               │     created_at     │
+                               │     updated_at     │
+                               │ FK  customer_id    │
+                               └────────────────────┘
+
+  ┌─────────────────────┐
+  │    USSD_SESSION     │   Entité INDÉPENDANTE (panier + état de session).
+  ├─────────────────────┤   Aucune clé étrangère : reliée seulement de façon
+  │ PK  id              │   logique au client par le numéro de téléphone.
+  ├─────────────────────┤
+  │     session_id (UK) │
+  │     phone_number    │
+  │     cart   (jsonb)  │
+  │     state           │
+  │     context (jsonb) │
+  │     created_at      │
+  │     updated_at      │
+  └─────────────────────┘
+```
+
+Relations (patte d'oie) :
+- `CATEGORIE (1) ──< PRODUIT (N)` — un produit appartient à une catégorie.
+- `CUSTOMER_USSD (1) ──< ORDER (N)` — une commande appartient à un client.
+- `ORDER (1) ──< ORDERITEM (N)` — une commande comprend plusieurs lignes.
+- `PRODUIT (1) ──< ORDERITEM (N)` — un produit peut figurer dans plusieurs lignes.
+
 ---
 
 ## 5. Passage au schéma relationnel (MLD)
