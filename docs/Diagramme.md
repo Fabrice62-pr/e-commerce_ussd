@@ -5,8 +5,9 @@
 > 1. le **diagramme de cas d'utilisation** (UML — vue fonctionnelle globale) ;
 > 2. le **diagramme de classes** complet (UML — vue structurelle) ;
 > 3. le **diagramme de séquence** du parcours d'achat (UML — vue dynamique) ;
-> 4. le **diagramme Entité-Association** (MCD, méthode MERISE) ;
-> 5. le **passage au schéma relationnel** (MLD : les tables PostgreSQL).
+> 4. le **diagramme Entité-Association** (MCD MERISE **+ modèle physique réel**
+>    fidèle à PostgreSQL : types, clés, contraintes) ;
+> 5. le **passage au schéma relationnel** (MLD + **schéma physique détaillé**).
 >
 > Les éléments **non encore développés** sont annotés par phase : `Phase 4`
 > (Africa's Talking), `Phase 5` (paiement), `Phase 6` (rapports).
@@ -404,6 +405,83 @@ erDiagram
 > navigation). Reliée *logiquement* au client par le numéro de téléphone, sans clé
 > étrangère (le panier est volatile, antérieur à la commande).
 
+### 4.3 Modèle physique complet (schéma RÉEL PostgreSQL)
+
+Diagramme entité-relation **fidèle à la base de données réelle** : noms de tables
+et de colonnes générés par Django, types PostgreSQL exacts, clés et contraintes.
+(`PK` = clé primaire, `FK` = clé étrangère, `UK` = contrainte d'unicité.)
+
+```mermaid
+erDiagram
+    catalog_category    ||--o{ catalog_product   : "category_id (1,N)"
+    orders_customerussd ||--o{ orders_order       : "customer_id (1,N)"
+    orders_order        ||--|{ orders_orderitem   : "order_id (1,N)"
+    catalog_product     ||--o{ orders_orderitem   : "product_id (0,N)"
+
+    catalog_category {
+        bigint id PK "auto-increment"
+        varchar name UK "max 100, NOT NULL"
+        boolean is_active "NOT NULL, defaut true"
+    }
+    catalog_product {
+        bigint id PK "auto-increment"
+        varchar name "max 150, NOT NULL"
+        integer price "NOT NULL, XOF, min 0"
+        integer stock "NOT NULL, min 0, defaut 0"
+        text description "NOT NULL (peut etre vide)"
+        boolean is_active "NOT NULL, defaut true"
+        timestamptz created_at "NOT NULL"
+        bigint category_id FK "vers catalog_category (PROTECT)"
+    }
+    orders_customerussd {
+        bigint id PK "auto-increment"
+        varchar phone_number UK "max 20, NOT NULL"
+        varchar name "max 100, NOT NULL (peut etre vide)"
+        timestamptz created_at "NOT NULL"
+    }
+    orders_order {
+        bigint id PK "auto-increment"
+        varchar status "max 20, NOT NULL, enumere"
+        integer total_amount "NOT NULL, defaut 0"
+        varchar validation_code UK "max 12, NOT NULL"
+        boolean is_paid "NOT NULL, defaut false"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+        bigint customer_id FK "vers orders_customerussd (PROTECT)"
+    }
+    orders_orderitem {
+        bigint id PK "auto-increment"
+        integer quantity "NOT NULL, min 0"
+        integer unit_price "NOT NULL, min 0 (prix fige)"
+        integer line_total "NOT NULL, = quantity x unit_price"
+        bigint order_id FK "vers orders_order (CASCADE)"
+        bigint product_id FK "vers catalog_product (PROTECT)"
+    }
+    ussd_ussdsession {
+        bigint id PK "auto-increment"
+        varchar session_id UK "max 100, NOT NULL"
+        varchar phone_number "max 20, NOT NULL"
+        jsonb cart "NOT NULL, defaut []"
+        varchar state "max 50, NOT NULL (peut etre vide)"
+        jsonb context "NOT NULL, defaut {}"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+```
+
+> `ussd_ussdsession` n'a **aucune clé étrangère** : c'est une entité technique
+> indépendante (voir 4.2).
+
+**Énumération de `orders_order.status`** (valeurs autorisées) :
+`EN_ATTENTE` · `PAYEE` · `PREPAREE` · `LIVREE` · `ANNULEE`.
+
+**Tables système Django** (présentes dans la base mais hors domaine métier) :
+`auth_user` (les **administrateurs / agents** qui se connectent à l'admin),
+`auth_group`, `auth_permission`, `django_session`, `django_migrations`,
+`django_admin_log`, `django_content_type`. Elles gèrent l'authentification,
+les permissions et le fonctionnement interne de Django ; aucune n'est liée par
+clé étrangère aux tables métier ci-dessus.
+
 ---
 
 ## 5. Passage au schéma relationnel (MLD)
@@ -465,3 +543,73 @@ SESSION_USSD (#id_session, session_id, telephone, panier, etat, contexte,
 > (`id_commande`, `id_produit`). L'implémentation Django conserve une **clé technique**
 > auto-incrémentée (`id_ligne`) — plus simple et autorisant plusieurs lignes pour un
 > même produit. Les deux approches sont fonctionnellement équivalentes.
+
+### Schéma physique détaillé (types & contraintes réels PostgreSQL)
+
+Description exacte de chaque table telle que générée dans la base.
+Légende : **PK** clé primaire · **FK** clé étrangère · **UK** unique · **NN** non nul.
+
+**`catalog_category`**
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | `bigint` | PK, auto-incrément |
+| `name` | `varchar(100)` | UK, NN |
+| `is_active` | `boolean` | NN, défaut `true` |
+
+**`catalog_product`**
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | `bigint` | PK, auto-incrément |
+| `name` | `varchar(150)` | NN |
+| `price` | `integer` | NN, `≥ 0` (XOF) |
+| `stock` | `integer` | NN, `≥ 0`, défaut `0` |
+| `description` | `text` | NN (peut être vide) |
+| `is_active` | `boolean` | NN, défaut `true` |
+| `created_at` | `timestamptz` | NN |
+| `category_id` | `bigint` | FK → `catalog_category(id)`, NN, `ON DELETE` protégé (PROTECT) |
+
+**`orders_customerussd`**
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | `bigint` | PK, auto-incrément |
+| `phone_number` | `varchar(20)` | UK, NN |
+| `name` | `varchar(100)` | NN (peut être vide) |
+| `created_at` | `timestamptz` | NN |
+
+**`orders_order`**
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | `bigint` | PK, auto-incrément |
+| `status` | `varchar(20)` | NN, énuméré : `EN_ATTENTE`/`PAYEE`/`PREPAREE`/`LIVREE`/`ANNULEE` |
+| `total_amount` | `integer` | NN, `≥ 0`, défaut `0` |
+| `validation_code` | `varchar(12)` | UK, NN (6 caractères alphanumériques) |
+| `is_paid` | `boolean` | NN, défaut `false` |
+| `created_at` | `timestamptz` | NN |
+| `updated_at` | `timestamptz` | NN |
+| `customer_id` | `bigint` | FK → `orders_customerussd(id)`, NN, PROTECT |
+
+**`orders_orderitem`**
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | `bigint` | PK, auto-incrément |
+| `quantity` | `integer` | NN, `≥ 0` |
+| `unit_price` | `integer` | NN, `≥ 0` (prix figé à l'achat) |
+| `line_total` | `integer` | NN, `= quantity × unit_price` |
+| `order_id` | `bigint` | FK → `orders_order(id)`, NN, `ON DELETE CASCADE` |
+| `product_id` | `bigint` | FK → `catalog_product(id)`, NN, PROTECT |
+
+**`ussd_ussdsession`** (aucune clé étrangère)
+| Colonne | Type | Contraintes |
+|---|---|---|
+| `id` | `bigint` | PK, auto-incrément |
+| `session_id` | `varchar(100)` | UK, NN |
+| `phone_number` | `varchar(20)` | NN |
+| `cart` | `jsonb` | NN, défaut `[]` |
+| `state` | `varchar(50)` | NN (peut être vide) |
+| `context` | `jsonb` | NN, défaut `{}` |
+| `created_at` | `timestamptz` | NN |
+| `updated_at` | `timestamptz` | NN |
+
+> Les contraintes `≥ 0` proviennent des `PositiveIntegerField` de Django (une
+> contrainte `CHECK` est ajoutée au niveau de PostgreSQL). `timestamptz` =
+> `timestamp with time zone`. `jsonb` = JSON binaire indexable de PostgreSQL.
