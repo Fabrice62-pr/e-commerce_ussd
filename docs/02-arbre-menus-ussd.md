@@ -201,7 +201,7 @@ produits et aux commandes. La page courante est mémorisée dans `USSDSession.co
 | Quantité non numérique ou ≤ 0 | « Quantite invalide » + redemander |
 | Quantité > stock | « Stock insuffisant (max N) » + redemander |
 | Produit / catégorie devenu indisponible | Message + retour menu parent |
-| Session expirée (timeout passerelle) | Nouvelle session repart de l'accueil ; **panier conservé** en base |
+| Session expirée / **coupure réseau** | Nouvelle session repart de l'accueil, avec le message *« Panier en cours : N article(s) »* — le **panier est intact** (rattaché au client, pas à la session) |
 
 ---
 
@@ -210,7 +210,9 @@ produits et aux commandes. La page courante est mémorisée dans `USSDSession.co
 - **Menus courts** : 160 caractères max par écran USSD → pagination indispensable.
 - **Texte sans accents** dans les messages → compatibilité avec les téléphones basiques.
 - **Numéro de téléphone = identité** du client : pas de login ni de PIN.
-- Le **panier** est persistant côté serveur (`USSDSession.cart`) pour survivre aux
-  timeouts de session.
+- Le **panier** est rattaché au **client** (`CustomerUSSD.cart`), et non à la session :
+  la passerelle attribue un nouveau `sessionId` à chaque appel, donc un panier stocké
+  dans la session serait perdu à la moindre coupure réseau. Un panier abandonné expire
+  au bout de 24 h (`USSD_CART_TTL_HOURS`).
 - La **langue et le nom** sont mémorisés (`CustomerUSSD`) : le client ne les ressaisit
   jamais.

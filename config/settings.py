@@ -96,3 +96,9 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Type de clé primaire par défaut
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Réglages USSD ---
+# Durée de validité d'un panier abandonné (en heures). Au-delà, le panier est vidé
+# automatiquement à la session suivante. Permet au client de retrouver son panier
+# après une coupure réseau, sans faire réapparaître un panier vieux de plusieurs jours.
+USSD_CART_TTL_HOURS = int(os.environ.get("USSD_CART_TTL_HOURS", "24"))

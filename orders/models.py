@@ -55,6 +55,15 @@ class CustomerUSSD(models.Model):
         default=Language.FR,
         help_text="Langue choisie par le client lors de sa première session USSD.",
     )
+    # Le panier est rattaché au CLIENT (et non à la session USSD) : il survit ainsi
+    # aux coupures réseau et aux expirations de session. Ex. [{"product_id": 1, "qty": 2}]
+    cart = models.JSONField("Panier en cours", default=list, blank=True)
+    cart_updated_at = models.DateTimeField(
+        "Panier modifié le",
+        null=True,
+        blank=True,
+        help_text="Sert à expirer les paniers abandonnés (voir USSD_CART_TTL_HOURS).",
+    )
     created_at = models.DateTimeField("Créé le", auto_now_add=True)
 
     class Meta:

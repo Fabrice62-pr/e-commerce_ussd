@@ -11,13 +11,27 @@ from .models import (
 
 @admin.register(CustomerUSSD)
 class CustomerUSSDAdmin(admin.ModelAdmin):
-    list_display = ("phone_number", "name", "language", "order_count", "created_at")
+    list_display = (
+        "phone_number",
+        "name",
+        "language",
+        "order_count",
+        "cart_items",
+        "cart_updated_at",
+        "created_at",
+    )
     list_filter = ("language",)
     search_fields = ("phone_number", "name")
+    readonly_fields = ("cart", "cart_updated_at", "created_at")
 
     @admin.display(description="Nombre de commandes")
     def order_count(self, obj):
         return obj.orders.count()
+
+    @admin.display(description="Panier en cours")
+    def cart_items(self, obj):
+        """Nombre d'articles dans le panier non validé du client."""
+        return sum(item.get("qty", 0) for item in (obj.cart or []))
 
 
 class OrderItemInline(admin.TabularInline):

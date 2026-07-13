@@ -2,18 +2,19 @@ from django.db import models
 
 
 class USSDSession(models.Model):
-    """État d'une session USSD en cours.
+    """État de NAVIGATION d'une session USSD.
 
     L'USSD est « sans état » : à chaque touche pressée, la passerelle nous renvoie
-    tout l'historique saisi. On stocke malgré tout le panier ici pour qu'il survive
-    aux délais d'expiration de session (le client peut recomposer le code et
-    retrouver son panier).
+    tout l'historique saisi. On mémorise donc ici l'écran courant et le contexte de
+    navigation, propres à une session (identifiée par le `session_id` de la passerelle).
+
+    ⚠️ Le PANIER n'est PAS ici : il est rattaché au client (`CustomerUSSD.cart`), car
+    la passerelle attribue un nouveau `session_id` à chaque appel. Le stocker ici le
+    ferait perdre à la moindre coupure réseau.
     """
 
     session_id = models.CharField("ID de session", max_length=100, unique=True)
     phone_number = models.CharField("Numéro de téléphone", max_length=20)
-    # Panier : liste d'articles, ex. [{"product_id": 1, "qty": 2}, ...]
-    cart = models.JSONField("Panier", default=list, blank=True)
     state = models.CharField("Écran courant", max_length=50, blank=True)
     # Contexte de navigation, ex. {"category_id": 3, "product_ids": [5, 8, 12]}
     # (mémorise la correspondance entre les numéros affichés et les objets en base)

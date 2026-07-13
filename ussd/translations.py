@@ -153,6 +153,12 @@ MESSAGES = {
         "fr": "Vider le panier",
         "ha": "Rufe kwandon siyayya", "dyu": "Sɔrɔ wotoro", "ff": "Pakka woto", "wo": "Firndelal pañe bi",
     },
+    # Affiché au retour du client si un panier non validé l'attend (coupure réseau,
+    # session expirée...). À REMPLIR dans les 4 autres langues.
+    "cart_restored": {
+        "fr": "Panier en cours: {n} article(s).",
+        "ha": "", "dyu": "", "ff": "", "wo": "",
+    },
     "cart_cleared": {
         "fr": "Panier vide.",
         "ha": "Kayan da ka zaba ta kuma.", "dyu": "I ka wotoro ta kuma.", "ff": "Woto maa ta kuma.", "wo": "Sa pañe: ta kuma.",

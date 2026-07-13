@@ -130,15 +130,21 @@ classDiagram
         +CharField name
         +PositiveIntegerField price
         +PositiveIntegerField stock
+        +PositiveIntegerField low_stock_threshold
         +TextField description
         +BooleanField is_active
         +DateTimeField created_at
         +is_available() bool
+        +is_low_stock() bool
+        +get_name(lang) str
     }
     class CustomerUSSD {
         +BigAutoField id
         +CharField phone_number
         +CharField name
+        +CharField language
+        +JSONField cart
+        +DateTimeField cart_updated_at
         +DateTimeField created_at
     }
     class Order {
@@ -164,7 +170,6 @@ classDiagram
         +BigAutoField id
         +CharField session_id
         +CharField phone_number
-        +JSONField cart
         +CharField state
         +JSONField context
         +DateTimeField created_at
@@ -283,38 +288,40 @@ selon la convention MERISE.
    |-----------------|                            |------------------|
    | id_categorie    |                            | id_client        |
    | nom             |                            | telephone        |
-   | actif           |                            | nom              |
-   +--------+--------+                            | date_creation    |
-            |                                      +--------+---------+
-         (0,n)                                          (0,n)
+   | noms traduits   |                            | nom              |
+   | actif           |                            | langue           |
+   +--------+--------+                            | panier (JSON)    |
+            |                                     | panier_maj       |
+         (0,n)                                    | date_creation    |
+            |                                     +--------+---------+
+       <  APPARTENIR  >                                (0,n)
             |                                              |
-       <  APPARTENIR  >                              <  PASSER  >
+         (1,1)                                       <  PASSER  >
             |                                              |
-         (1,1)                                          (1,1)
-            |                                              |
-   +--------+--------+                            +--------+---------+
-   |    PRODUIT      |                            |    COMMANDE      |
-   |-----------------|       +-------------+      |------------------|
-   | id_produit      |       |  CONTENIR   |      | id_commande      |
-   | nom             |(0,n)  |-------------|(1,n) | statut           |
-   | prix            +-------< quantite    >------+ montant_total    |
-   | stock           |       | prix_unitaire|     | code_validation  |
-   | description     |       | total_ligne |      | payee            |
-   | actif           |       +-------------+      | date_creation    |
-   | date_creation   |                            | date_maj         |
-   +-----------------+                            +------------------+
+   +--------+--------+                                  (1,1)
+   |    PRODUIT      |                                     |
+   |-----------------|       +-------------+     +--------+---------+
+   | id_produit      |       |  CONTENIR   |     |    COMMANDE      |
+   | nom             |(0,n)  |-------------|(1,n)|------------------|
+   | noms traduits   +-------< quantite    >-----+ id_commande      |
+   | prix            |       | prix_unitaire|    | statut           |
+   | stock           |       | total_ligne |     | montant_total    |
+   | seuil_alerte    |       +-------------+     | code_validation  |
+   | description     |                           | payee            |
+   | actif           |                           | date_creation    |
+   | date_creation   |                           | date_maj         |
+   +-----------------+                           +------------------+
 
 
    +-------------------+
-   |   SESSION_USSD    |   Entité technique INDÉPENDANTE (panier + état de
-   |-------------------|   navigation d'une session USSD). Aucune association :
-   | id_session        |   reliée seulement de façon logique au client par le
-   | session_id        |   numéro de téléphone, sans clé étrangère (le panier
-   | telephone         |   est volatile, antérieur à la création de la commande).
-   | panier (JSON)     |
-   | etat              |
-   | contexte (JSON)   |
-   | date_creation     |
+   |   SESSION_USSD    |   Entité technique INDÉPENDANTE : état de NAVIGATION
+   |-------------------|   d'une session (écran courant + contexte). Aucune
+   | id_session        |   association, aucune clé étrangère.
+   | session_id        |
+   | telephone         |   ⚠️ Le PANIER n'est PAS ici : il appartient au CLIENT
+   | etat              |   (CLIENT_USSD.panier), car la passerelle attribue un
+   | contexte (JSON)   |   NOUVEAU session_id à chaque appel. Rattaché au client,
+   | date_creation     |   le panier survit aux coupures réseau.
    | date_maj          |
    +-------------------+
 ```
@@ -356,6 +363,9 @@ erDiagram
         int id_client PK
         string telephone
         string nom
+        string langue
+        json panier
+        datetime panier_maj
         datetime date_creation
     }
     COMMANDE {
@@ -380,7 +390,6 @@ erDiagram
         int id_session PK
         string session_id
         string telephone
-        json panier
         string etat
         json contexte
         datetime date_creation
@@ -401,9 +410,13 @@ erDiagram
 > propres** (*quantité*, *prix unitaire* figé, *total de ligne*). Au passage au
 > relationnel, elle devient la table `LIGNE_COMMANDE` (section 5).
 
-> **`SESSION_USSD`** : entité **technique et indépendante** (panier + état de
-> navigation). Reliée *logiquement* au client par le numéro de téléphone, sans clé
-> étrangère (le panier est volatile, antérieur à la commande).
+> **`SESSION_USSD`** : entité **technique et indépendante** (état de navigation d'une
+> session). Reliée *logiquement* au client par le numéro de téléphone, sans clé étrangère.
+>
+> ⚠️ **Le panier n'est pas dans la session** : la passerelle attribue un **nouveau
+> `session_id` à chaque appel**, donc un panier stocké là serait perdu à la moindre
+> coupure réseau. Il est porté par **`CLIENT_USSD.panier`** (avec `panier_maj` pour
+> expirer les paniers abandonnés au bout de 24 h).
 
 ### 4.3 Modèle physique complet (schéma RÉEL PostgreSQL)
 
@@ -437,6 +450,9 @@ erDiagram
         bigint id PK "auto-increment"
         varchar phone_number UK "max 20, NOT NULL"
         varchar name "max 100, NOT NULL (peut etre vide)"
+        varchar language "max 5, NOT NULL, defaut fr (fr/ha/dyu/ff/wo)"
+        jsonb cart "NOT NULL, defaut [] - PANIER DU CLIENT"
+        timestamptz cart_updated_at "NULL - sert a expirer le panier"
         timestamptz created_at "NOT NULL"
     }
     orders_order {
@@ -461,16 +477,16 @@ erDiagram
         bigint id PK "auto-increment"
         varchar session_id UK "max 100, NOT NULL"
         varchar phone_number "max 20, NOT NULL"
-        jsonb cart "NOT NULL, defaut []"
         varchar state "max 50, NOT NULL (peut etre vide)"
-        jsonb context "NOT NULL, defaut {}"
+        jsonb context "NOT NULL, defaut {} - navigation seulement"
         timestamptz created_at "NOT NULL"
         timestamptz updated_at "NOT NULL"
     }
 ```
 
 > `ussd_ussdsession` n'a **aucune clé étrangère** : c'est une entité technique
-> indépendante (voir 4.2).
+> indépendante (voir 4.2). Elle ne contient **que l'état de navigation** — le panier
+> est dans `orders_customerussd.cart`.
 
 **Énumération de `orders_order.status`** (valeurs autorisées) :
 `EN_ATTENTE` · `PAYEE` · `PREPAREE` · `LIVREE` · `ANNULEE`.
@@ -489,43 +505,47 @@ Légende des cardinalités : **1** = un(e) seul(e) · **N** = plusieurs (côté 
 d'oie »). `PK` clé primaire · `FK` clé étrangère · `UK` unique.
 
 ```
-  ┌─────────────────┐ 1      N ┌────────────────────┐ 1      N ┌────────────────────┐
-  │    CATEGORIE    │──────────│      PRODUIT       │──────────│     ORDERITEM      │
-  ├─────────────────┤ contient ├────────────────────┤ concerne ├────────────────────┤
-  │ PK  id          │          │ PK  id             │          │ PK  id             │
-  ├─────────────────┤          ├────────────────────┤          ├────────────────────┤
-  │     name  (UK)  │          │     name           │          │     quantity       │
-  │     is_active   │          │     price          │          │     unit_price     │
-  └─────────────────┘          │     stock          │          │     line_total     │
-                               │     description    │          │ FK  order_id       │
-                               │     is_active      │          │ FK  product_id     │
-                               │     created_at     │          └─────────┬──────────┘
-                               │ FK  category_id    │                    │ N
-                               └────────────────────┘                    │ comprend
-                                                                         │ 1
-  ┌─────────────────┐ 1      N ┌────────────────────┐                    │
-  │  CUSTOMER_USSD  │──────────│       ORDER        │────────────────────┘
-  ├─────────────────┤  passe   ├────────────────────┤
-  │ PK  id          │          │ PK  id             │
-  ├─────────────────┤          ├────────────────────┤
-  │     phone_number│          │     status         │
-  │           (UK)  │          │     total_amount   │
-  │     name        │          │     validation_code│
-  │     created_at  │          │            (UK)    │
-  └─────────────────┘          │     is_paid        │
-                               │     created_at     │
-                               │     updated_at     │
+  ┌─────────────────┐ 1      N ┌─────────────────────┐ 1     N ┌────────────────────┐
+  │    CATEGORIE    │──────────│       PRODUIT       │─────────│     ORDERITEM      │
+  ├─────────────────┤ contient ├─────────────────────┤ concerne├────────────────────┤
+  │ PK  id          │          │ PK  id              │         │ PK  id             │
+  ├─────────────────┤          ├─────────────────────┤         ├────────────────────┤
+  │     name  (UK)  │          │     name            │         │     quantity       │
+  │     name_ha     │          │     name_ha         │         │     unit_price     │
+  │     name_dyu    │          │     name_dyu        │         │     line_total     │
+  │     name_ff     │          │     name_ff         │         │ FK  order_id       │
+  │     name_wo     │          │     name_wo         │         │ FK  product_id     │
+  │     is_active   │          │     price           │         └─────────┬──────────┘
+  └─────────────────┘          │     stock           │                   │ N
+                               │ low_stock_threshold │                   │ comprend
+                               │     description     │                   │ 1
+                               │     is_active       │                   │
+                               │     created_at      │                   │
+                               │ FK  category_id     │                   │
+                               └─────────────────────┘                   │
+                                                                         │
+  ┌─────────────────────┐ 1  N ┌────────────────────┐                    │
+  │    CUSTOMER_USSD    │──────│       ORDER        │────────────────────┘
+  ├─────────────────────┤ passe├────────────────────┤
+  │ PK  id              │      │ PK  id             │
+  ├─────────────────────┤      ├────────────────────┤
+  │  phone_number  (UK) │      │     status         │
+  │  name               │      │     total_amount   │
+  │  language           │      │     validation_code│
+  │  cart      (jsonb)  │ ◄─── │            (UK)    │
+  │  cart_updated_at    │ LE   │     is_paid        │
+  │  created_at         │PANIER│     created_at     │
+  └─────────────────────┘      │     updated_at     │
                                │ FK  customer_id    │
                                └────────────────────┘
 
   ┌─────────────────────┐
-  │    USSD_SESSION     │   Entité INDÉPENDANTE (panier + état de session).
-  ├─────────────────────┤   Aucune clé étrangère : reliée seulement de façon
-  │ PK  id              │   logique au client par le numéro de téléphone.
-  ├─────────────────────┤
-  │     session_id (UK) │
-  │     phone_number    │
-  │     cart   (jsonb)  │
+  │    USSD_SESSION     │   Entité INDÉPENDANTE : état de NAVIGATION seulement
+  ├─────────────────────┤   (écran courant + contexte). Aucune clé étrangère.
+  │ PK  id              │
+  ├─────────────────────┤   ⚠️ Le panier N'EST PAS ici : la passerelle attribue un
+  │     session_id (UK) │   nouveau session_id à chaque appel. Il est porté par
+  │     phone_number    │   CUSTOMER_USSD.cart pour survivre aux coupures reseau.
   │     state           │
   │     context (jsonb) │
   │     created_at      │
@@ -555,12 +575,13 @@ Règles de passage du MCD (section 4) vers le modèle relationnel :
 Légende : `#` = clé primaire, `=>` = clé étrangère.
 
 ```
-CATEGORIE (#id_categorie, nom, actif)
+CATEGORIE (#id_categorie, nom, nom_ha, nom_dyu, nom_ff, nom_wo, actif)
 
-PRODUIT   (#id_produit, nom, prix, stock, description, actif, date_creation,
+PRODUIT   (#id_produit, nom, nom_ha, nom_dyu, nom_ff, nom_wo,
+           prix, stock, seuil_alerte_stock, description, actif, date_creation,
            id_categorie => CATEGORIE)
 
-CLIENT_USSD (#id_client, telephone, nom, date_creation)
+CLIENT_USSD (#id_client, telephone, nom, langue, panier, panier_maj, date_creation)
 
 COMMANDE  (#id_commande, statut, montant_total, code_validation, payee,
            date_creation, date_maj,
@@ -570,7 +591,7 @@ LIGNE_COMMANDE (#id_ligne, quantite, prix_unitaire, total_ligne,
                 id_commande => COMMANDE,
                 id_produit  => PRODUIT)
 
-SESSION_USSD (#id_session, session_id, telephone, panier, etat, contexte,
+SESSION_USSD (#id_session, session_id, telephone, etat, contexte,
               date_creation, date_maj)
 ```
 
@@ -610,16 +631,19 @@ Légende : **PK** clé primaire · **FK** clé étrangère · **UK** unique · *
 | Colonne | Type | Contraintes |
 |---|---|---|
 | `id` | `bigint` | PK, auto-incrément |
-| `name` | `varchar(100)` | UK, NN |
+| `name` | `varchar(100)` | UK, NN — nom en **français** (référence) |
+| `name_ha` / `name_dyu` / `name_ff` / `name_wo` | `varchar(150)` | NN (peuvent être vides → repli sur le français) |
 | `is_active` | `boolean` | NN, défaut `true` |
 
 **`catalog_product`**
 | Colonne | Type | Contraintes |
 |---|---|---|
 | `id` | `bigint` | PK, auto-incrément |
-| `name` | `varchar(150)` | NN |
+| `name` | `varchar(150)` | NN — nom en **français** (référence) |
+| `name_ha` / `name_dyu` / `name_ff` / `name_wo` | `varchar(150)` | NN (peuvent être vides → repli sur le français) |
 | `price` | `integer` | NN, `≥ 0` (XOF) |
 | `stock` | `integer` | NN, `≥ 0`, défaut `0` |
+| `low_stock_threshold` | `integer` | NN, `≥ 0`, défaut `5` — seuil d'alerte stock bas |
 | `description` | `text` | NN (peut être vide) |
 | `is_active` | `boolean` | NN, défaut `true` |
 | `created_at` | `timestamptz` | NN |
@@ -631,6 +655,9 @@ Légende : **PK** clé primaire · **FK** clé étrangère · **UK** unique · *
 | `id` | `bigint` | PK, auto-incrément |
 | `phone_number` | `varchar(20)` | UK, NN |
 | `name` | `varchar(100)` | NN (peut être vide) |
+| `language` | `varchar(5)` | NN, défaut `fr` — `fr`/`ha`/`dyu`/`ff`/`wo` |
+| `cart` | `jsonb` | NN, défaut `[]` — **le panier en cours du client** |
+| `cart_updated_at` | `timestamptz` | NULL — sert à expirer les paniers abandonnés |
 | `created_at` | `timestamptz` | NN |
 
 **`orders_order`**
@@ -655,15 +682,14 @@ Légende : **PK** clé primaire · **FK** clé étrangère · **UK** unique · *
 | `order_id` | `bigint` | FK → `orders_order(id)`, NN, `ON DELETE CASCADE` |
 | `product_id` | `bigint` | FK → `catalog_product(id)`, NN, PROTECT |
 
-**`ussd_ussdsession`** (aucune clé étrangère)
+**`ussd_ussdsession`** (aucune clé étrangère — état de navigation uniquement)
 | Colonne | Type | Contraintes |
 |---|---|---|
 | `id` | `bigint` | PK, auto-incrément |
 | `session_id` | `varchar(100)` | UK, NN |
 | `phone_number` | `varchar(20)` | NN |
-| `cart` | `jsonb` | NN, défaut `[]` |
-| `state` | `varchar(50)` | NN (peut être vide) |
-| `context` | `jsonb` | NN, défaut `{}` |
+| `state` | `varchar(50)` | NN (peut être vide) — écran courant |
+| `context` | `jsonb` | NN, défaut `{}` — numéros affichés ↔ ids, page courante |
 | `created_at` | `timestamptz` | NN |
 | `updated_at` | `timestamptz` | NN |
 

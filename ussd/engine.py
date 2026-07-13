@@ -17,8 +17,11 @@ Tous les textes proviennent de `translations.py` (multi-langue avec repli sur
 le français). Les listes longues sont paginées.
 """
 import math
+from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from catalog.models import Category, Product
 from orders.models import CustomerUSSD, Order, OrderItem
@@ -86,6 +89,49 @@ def _nav_lines(lang, page, total_pages):
 
 
 # =========================================================================
+# Panier — rattaché au CLIENT (survit aux coupures réseau)
+# =========================================================================
+# Le panier est stocké sur `CustomerUSSD` et non sur la session : la passerelle
+# attribue un nouveau `session_id` à chaque appel, donc un panier stocké dans la
+# session serait perdu à la moindre coupure. Rattaché au numéro de téléphone, il
+# est retrouvé intact quand le client recompose le code.
+
+def _write_cart(customer, cart, touch=True):
+    """Enregistre le panier du client. `touch=False` pour ne pas prolonger sa validité."""
+    customer.cart = cart
+    fields = ["cart"]
+    if touch:
+        customer.cart_updated_at = timezone.now()
+        fields.append("cart_updated_at")
+    customer.save(update_fields=fields)
+
+
+def _cart_expired(customer):
+    """Le panier a-t-il dépassé sa durée de validité (panier abandonné) ?"""
+    if not customer.cart or not customer.cart_updated_at:
+        return False
+    ttl = getattr(settings, "USSD_CART_TTL_HOURS", 24)
+    return timezone.now() - customer.cart_updated_at > timedelta(hours=ttl)
+
+
+def _load_cart(customer):
+    """Panier utilisable : vidé s'il a expiré, purgé des produits devenus indisponibles."""
+    if _cart_expired(customer):
+        _write_cart(customer, [], touch=False)
+        return []
+
+    cart = customer.cart or []
+    valides = [
+        item for item in cart
+        if Product.objects.filter(id=item["product_id"], is_active=True).exists()
+    ]
+    if len(valides) != len(cart):
+        # Purge silencieuse : on ne prolonge pas la validité du panier.
+        _write_cart(customer, valides, touch=False)
+    return valides
+
+
+# =========================================================================
 # Point d'entrée
 # =========================================================================
 def process_ussd(session_id, phone_number, text):
@@ -105,7 +151,14 @@ def process_ussd(session_id, phone_number, text):
         # Début de session : premier contact (pas de nom) -> choix de la langue.
         if not customer.name:
             return show_language(session, customer, first_time=True)
-        return show_home(session, customer)
+
+        # Reprise d'un panier non validé (coupure réseau, session expirée...).
+        cart = _load_cart(customer)
+        prefix = ""
+        if cart:
+            nb_articles = sum(item["qty"] for item in cart)
+            prefix = t("cart_restored", customer.language, n=nb_articles) + "\n\n"
+        return show_home(session, customer, prefix=prefix)
 
     user_input = text.split("*")[-1].strip()
 
@@ -376,34 +429,33 @@ def handle_quantity(session, customer, value):
             prefix=t("insufficient_stock", lang, max=product.stock) + "\n\n",
         )
 
-    _add_to_cart(session, product_id, quantity)
+    _add_to_cart(customer, product_id, quantity)
     return show_home(
         session, customer,
         prefix=t("added_to_cart", lang, qty=quantity, name=product.get_name(lang)) + "\n\n",
     )
 
 
-def _add_to_cart(session, product_id, quantity):
-    """Ajoute un produit au panier (fusionne si le produit y est déjà)."""
-    cart = session.cart or []
+def _add_to_cart(customer, product_id, quantity):
+    """Ajoute un produit au panier du client (fusionne si le produit y est déjà)."""
+    cart = _load_cart(customer)
     for item in cart:
         if item["product_id"] == product_id:
             item["qty"] += quantity
             break
     else:
         cart.append({"product_id": product_id, "qty": quantity})
-    session.cart = cart
-    session.save()
+    _write_cart(customer, cart)
 
 
 # =========================================================================
 # ÉCRAN : PANIER
 # =========================================================================
-def _cart_lines(session, lang):
+def _cart_lines(customer, lang):
     """Retourne (lignes du panier, total)."""
     lines = []
     total = 0
-    for item in session.cart or []:
+    for item in _load_cart(customer):
         product = Product.objects.filter(id=item["product_id"]).first()
         if not product:
             continue
@@ -415,10 +467,10 @@ def _cart_lines(session, lang):
 
 def show_cart(session, customer, prefix=""):
     lang = customer.language
-    if not (session.cart or []):
+    if not _load_cart(customer):
         return show_home(session, customer, prefix=t("cart_empty", lang) + "\n\n")
 
-    item_lines, total = _cart_lines(session, lang)
+    item_lines, total = _cart_lines(customer, lang)
     lines = [t("cart_title", lang)] + item_lines
     lines.append(t("cart_total", lang, total=total))
     lines.append(f"1. {t('cart_validate', lang)}")
@@ -435,8 +487,7 @@ def handle_cart(session, customer, choice):
     if choice == "1":
         return show_confirm(session, customer)      # écran de confirmation
     if choice == "2":
-        session.cart = []
-        session.save()
+        _write_cart(customer, [])
         return show_home(session, customer, prefix=t("cart_cleared", lang) + "\n\n")
     if choice == "0":
         return show_home(session, customer)
@@ -448,10 +499,10 @@ def handle_cart(session, customer, choice):
 # =========================================================================
 def show_confirm(session, customer, prefix=""):
     lang = customer.language
-    if not (session.cart or []):
+    if not _load_cart(customer):
         return show_home(session, customer, prefix=t("cart_empty", lang) + "\n\n")
 
-    item_lines, total = _cart_lines(session, lang)
+    item_lines, total = _cart_lines(customer, lang)
     lines = [t("confirm_title", lang)] + item_lines
     lines.append(t("cart_total", lang, total=total))
     lines.append(f"1. {t('confirm_yes', lang)}")
@@ -477,7 +528,7 @@ def handle_confirm(session, customer, choice):
 def _validate_order(session, customer):
     """Transforme le panier en commande et génère le code de paiement."""
     lang = customer.language
-    cart = session.cart or []
+    cart = _load_cart(customer)
     if not cart:
         return show_home(session, customer, prefix=t("cart_empty", lang) + "\n\n")
 
@@ -495,8 +546,8 @@ def _validate_order(session, customer):
         )
     order.update_total()
 
-    # Réinitialisation de la session (panier vidé).
-    session.cart = []
+    # Le panier du client est vidé (la commande le remplace) et la session réinitialisée.
+    _write_cart(customer, [])
     session.context = {}
     session.state = HOME
     session.save()

@@ -94,6 +94,41 @@ Nouvel état `CONFIRM` dans la machine à états ; « Non » ramène au panier.
 - **Dans les rapports** : une carte **« Produits en stock bas »** + un **tableau
   d'alerte** listant les produits concernés (stock restant, seuil, état).
 
+## 6. Panier persistant (survit aux coupures réseau)
+
+### Le problème
+Le panier était stocké dans `USSDSession`, **identifiée par le `sessionId`** fourni par
+la passerelle. Or Africa's Talking attribue un **nouveau `sessionId` à chaque appel** :
+si le réseau coupait avant la validation, le client **perdait tout son panier** en
+recomposant le code.
+
+### La solution : rattacher le panier au CLIENT
+```
+AVANT :  USSDSession(sessionId) → cart     ❌ perdu à chaque nouvel appel
+APRÈS :  CustomerUSSD(numéro)   → cart     ✅ survit aux coupures réseau
+```
+Conceptuellement, un panier appartient au **client** (identifié par son numéro), pas à
+une session éphémère.
+
+### Ce qui a été mis en place
+- Champs **`CustomerUSSD.cart`** (JSON) et **`CustomerUSSD.cart_updated_at`**.
+- Le champ `cart` a été **retiré de `USSDSession`** (qui ne garde plus que l'état de
+  navigation : écran courant + contexte).
+- **Expiration** : un panier abandonné depuis plus de **24 h** (réglable via
+  `USSD_CART_TTL_HOURS` dans les settings) est vidé automatiquement — pour éviter
+  qu'un panier vieux de plusieurs jours ne réapparaisse.
+- **Purge automatique** : les produits devenus indisponibles (désactivés par l'admin)
+  sont retirés du panier silencieusement.
+- **Message de reprise** : au retour, le client voit *« Panier en cours : 5 article(s). »*
+- L'admin affiche le panier en cours de chaque client (nombre d'articles + date).
+
+### Vérifications
+| Test | Résultat |
+|---|---|
+| Panier constitué (session AAA), puis **coupure** → nouvelle session BBB | *« Panier en cours: 5 article(s) »*, panier intact, commande validée ✅ |
+| Panier abandonné depuis **48 h** (validité 24 h) | vidé automatiquement ✅ |
+| Produit du panier **désactivé** par l'admin | retiré automatiquement du panier ✅ |
+
 ---
 
 ## Fichiers créés / modifiés
