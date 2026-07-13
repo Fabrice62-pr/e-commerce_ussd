@@ -2,7 +2,9 @@
 
 Correspond au « RapportService » anticipé dans les diagrammes UML.
 """
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Sum
+
+from catalog.models import Product
 
 from .models import Order, OrderItem
 
@@ -39,6 +41,13 @@ def get_rapport_data():
         .order_by("-quantite")[:10]
     )
 
+    # --- Alerte stock bas (stock ≤ seuil d'alerte du produit) ---
+    produits_stock_bas = list(
+        Product.objects.filter(is_active=True, stock__lte=F("low_stock_threshold"))
+        .select_related("category")
+        .order_by("stock")
+    )
+
     return {
         "chiffre_affaires": chiffre_affaires,
         "nb_commandes": nb_commandes,
@@ -48,4 +57,6 @@ def get_rapport_data():
         "nb_clients": nb_clients,
         "par_statut": par_statut,
         "top_produits": top_produits,
+        "produits_stock_bas": produits_stock_bas,
+        "nb_stock_bas": len(produits_stock_bas),
     }

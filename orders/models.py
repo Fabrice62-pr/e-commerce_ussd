@@ -39,8 +39,22 @@ def generate_validation_code():
 class CustomerUSSD(models.Model):
     """Client identifié uniquement par son numéro de téléphone (pas de compte web)."""
 
+    class Language(models.TextChoices):
+        FR = "fr", "Français"
+        HA = "ha", "Haoussa"
+        DYU = "dyu", "Dioula"
+        FF = "ff", "Peul"
+        WO = "wo", "Wolof"
+
     phone_number = models.CharField("Numéro de téléphone", max_length=20, unique=True)
     name = models.CharField("Nom", max_length=100, blank=True)
+    language = models.CharField(
+        "Langue",
+        max_length=5,
+        choices=Language.choices,
+        default=Language.FR,
+        help_text="Langue choisie par le client lors de sa première session USSD.",
+    )
     created_at = models.DateTimeField("Créé le", auto_now_add=True)
 
     class Meta:

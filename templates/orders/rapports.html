@@ -28,6 +28,12 @@
     .card .value { font-size: 1.7rem; font-weight: 700; }
     .card .unit { font-size: .9rem; color: var(--muted); font-weight: 500; }
     .card.accent { border-left: 4px solid var(--accent); }
+    .card.alert { border-left: 4px solid var(--warn); background: #fff8f0; }
+
+    .badge { color: #fff; padding: 2px 8px; border-radius: 10px;
+             font-size: 11px; font-weight: 600; }
+    .badge.rupture { background: #c0392b; }
+    .badge.bas { background: var(--warn); }
 
     .panel { background: var(--card); border: 1px solid var(--line);
              border-radius: 12px; padding: 20px; }
@@ -80,7 +86,46 @@
         <div class="label">Clients</div>
         <div class="value">{{ data.nb_clients|intcomma }}</div>
       </div>
+      <div class="card {% if data.nb_stock_bas %}alert{% endif %}">
+        <div class="label">Produits en stock bas</div>
+        <div class="value">{{ data.nb_stock_bas|intcomma }}</div>
+      </div>
     </div>
+
+    <!-- Alerte stock bas -->
+    {% if data.produits_stock_bas %}
+      <h2>⚠️ Alerte stock bas</h2>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Produit</th>
+              <th>Catégorie</th>
+              <th class="num">Stock restant</th>
+              <th class="num">Seuil d'alerte</th>
+              <th>État</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in data.produits_stock_bas %}
+              <tr>
+                <td>{{ p.name }}</td>
+                <td>{{ p.category.name }}</td>
+                <td class="num">{{ p.stock }}</td>
+                <td class="num">{{ p.low_stock_threshold }}</td>
+                <td>
+                  {% if p.stock == 0 %}
+                    <span class="badge rupture">RUPTURE</span>
+                  {% else %}
+                    <span class="badge bas">STOCK BAS</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
 
     <!-- Répartition par statut -->
     <h2>Commandes par statut</h2>

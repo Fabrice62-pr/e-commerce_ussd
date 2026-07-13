@@ -15,6 +15,9 @@ DEMO_DATA = {
         ("Huile 1L", 3500, 60, "Bouteille d'huile végétale 1 litre."),
         ("Sucre 1kg", 1000, 100, "Paquet de sucre en poudre 1 kg."),
         ("Farine 5kg", 4500, 30, "Sac de farine de blé 5 kg."),
+        ("Mil 5kg", 3000, 25, "Sac de mil 5 kg."),
+        ("Haricot 1kg", 1500, 40, "Paquet de haricots secs 1 kg."),
+        ("Pates 500g", 700, 60, "Paquet de pâtes alimentaires 500 g."),
     ],
     "Hygiène": [
         ("Savon", 500, 200, "Savon de ménage."),

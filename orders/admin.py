@@ -11,7 +11,8 @@ from .models import (
 
 @admin.register(CustomerUSSD)
 class CustomerUSSDAdmin(admin.ModelAdmin):
-    list_display = ("phone_number", "name", "order_count", "created_at")
+    list_display = ("phone_number", "name", "language", "order_count", "created_at")
+    list_filter = ("language",)
     search_fields = ("phone_number", "name")
 
     @admin.display(description="Nombre de commandes")
