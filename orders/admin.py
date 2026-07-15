@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.utils.html import format_html
 
 from .models import (
     CustomerUSSD,
@@ -7,6 +8,15 @@ from .models import (
     OrderItem,
     PaiementError,
 )
+
+# Statut -> variante de badge (mêmes couleurs sémantiques que la page Rapports).
+STATUS_BADGE = {
+    Order.Status.EN_ATTENTE: "warn",
+    Order.Status.PAYEE: "ok",
+    Order.Status.PREPAREE: "info",
+    Order.Status.LIVREE: "teal",
+    Order.Status.ANNULEE: "danger",
+}
 
 
 @admin.register(CustomerUSSD)
@@ -48,7 +58,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "customer",
-        "status",
+        "status_badge",
         "total_amount",
         "validation_code",
         "is_paid",
@@ -60,6 +70,22 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline]
     list_select_related = ("customer",)
     actions = ["action_valider_paiement"]
+    date_hierarchy = "created_at"  # navigation par période au-dessus de la liste
+    fieldsets = (
+        (None, {"fields": ("customer", "status", "is_paid")}),
+        ("Paiement", {"fields": ("validation_code", "total_amount")}),
+        ("Dates", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
+    )
+
+    @admin.display(description="Statut", ordering="status")
+    def status_badge(self, obj):
+        """Badge coloré : même code couleur que le tableau de bord des rapports."""
+        variant = STATUS_BADGE.get(obj.status, "neutral")
+        return format_html(
+            '<span class="mts-badge mts-badge--{}">{}</span>',
+            variant,
+            obj.get_status_display(),
+        )
 
     def save_related(self, request, form, formsets, change):
         """Recalcule le montant total de la commande après l'enregistrement des lignes."""

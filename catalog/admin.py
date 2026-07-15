@@ -78,16 +78,11 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description="Alerte")
     def stock_alert(self, obj):
-        """Pastille visuelle : rupture / stock bas / OK."""
+        """Badge sémantique : rupture / stock bas / OK (styles dans base_site.html)."""
         if obj.stock == 0:
-            couleur, libelle = "#c0392b", "RUPTURE"
+            css, libelle = "danger", "Rupture"
         elif obj.is_low_stock:
-            couleur, libelle = "#d9822b", "STOCK BAS"
+            css, libelle = "warn", "Stock bas"
         else:
-            couleur, libelle = "#2e7d5b", "OK"
-        return format_html(
-            '<span style="background:{};color:#fff;padding:2px 8px;'
-            'border-radius:10px;font-size:11px;font-weight:600;">{}</span>',
-            couleur,
-            libelle,
-        )
+            css, libelle = "ok", "OK"
+        return format_html('<span class="mts-badge mts-badge--{}">{}</span>', css, libelle)
