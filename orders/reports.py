@@ -27,6 +27,7 @@ def get_rapport_data():
     for row in orders.values("status").annotate(n=Count("id")).order_by("-n"):
         par_statut.append(
             {
+                "code": row["status"],  # sert au template pour la couleur sémantique
                 "statut": statut_labels.get(row["status"], row["status"]),
                 "n": row["n"],
                 "pct": round(row["n"] * 100 / nb_commandes) if nb_commandes else 0,

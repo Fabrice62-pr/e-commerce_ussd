@@ -157,7 +157,7 @@ MESSAGES = {
     # session expirée...). À REMPLIR dans les 4 autres langues.
     "cart_restored": {
         "fr": "Panier en cours: {n} article(s).",
-        "ha": "", "dyu": "", "ff": "", "wo": "",
+        "ha": "Kayan da ke cikin kwandon siyayya a yanzu: {n} na kaya.", "dyu": "Sisan wotoro: {n} fɛɛn(w).", "ff": "Kart jooni: {n} huunde(ji).", "wo": "Pañe bi fi nekk: {n} mbir(yi).",
     },
     "cart_cleared": {
         "fr": "Panier vide.",
