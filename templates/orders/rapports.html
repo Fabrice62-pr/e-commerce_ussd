@@ -24,6 +24,8 @@
       --red-soft: #fdecea;
       --red-line: #f3c7c1;
       --teal: #0f766e;
+      --indigo: #5b5fc7;         /* 2e série des graphiques à double axe */
+      --mint: #a8d5c2;           /* stock "initial" (teinte pâle) */
       --radius: 10px;
       --shadow: 0 1px 2px rgb(29 40 51 / .05);
     }
@@ -46,7 +48,7 @@
     /* ==== En-tête ==== */
     .topbar { background: var(--brand); color: #fff; }
     .topbar-inner {
-      max-width: 1080px; margin: 0 auto; padding: 14px 24px;
+      max-width: 1200px; margin: 0 auto; padding: 14px 24px;
       display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     }
     .back {
@@ -67,7 +69,7 @@
     .print-btn:hover { background: rgb(255 255 255 / .24); }
     .print-btn:active { transform: translateY(1px); }
 
-    main { max-width: 1080px; margin: 0 auto; padding: 28px 24px 8px; }
+    main { max-width: 1200px; margin: 0 auto; padding: 28px 24px 8px; }
 
     h2 {
       font-size: 1rem; font-weight: 650; letter-spacing: -.01em;
@@ -108,8 +110,58 @@
       border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px;
     }
     .panel.tinted { background: #fffdf8; border-color: var(--amber-line); }
+    .panel + .panel-note { margin-top: 8px; }
     .columns { display: grid; gap: 14px; grid-template-columns: 5fr 7fr; align-items: start; }
-    .columns h2 { margin-top: 0; }
+    .columns-even { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; align-items: start; }
+    .columns h2, .columns-even h2 { margin-top: 0; }
+
+    /* ==== En-tête interne d'un panneau-graphique ==== */
+    .chart-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+    }
+    .chart-title { font-weight: 650; font-size: 1rem; letter-spacing: -.01em; }
+    .chart-sub { color: var(--muted); font-size: .82rem; margin-top: 2px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 999px; background: currentColor; display: inline-block; }
+    .legend-dash {
+      width: 16px; height: 0; border-top: 2px dashed currentColor; display: inline-block;
+    }
+
+    /* ==== Puces de synthèse (cumul, net) ==== */
+    .stat-chip {
+      display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px;
+      border-radius: 10px; padding: 7px 13px; font-size: .72rem; font-weight: 600;
+      border: 1px solid var(--line); background: #f6f9fb; color: var(--muted);
+      white-space: nowrap;
+    }
+    .stat-chip b { font-size: .92rem; font-variant-numeric: tabular-nums; }
+    .stat-chip.pos { background: var(--green-soft); border-color: #cfe6db; color: var(--green); }
+    .stat-chip.pos b { color: var(--green); }
+    .stat-chip.neg { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
+    .stat-chip.neg b { color: var(--red); }
+    .stat-chip.info { background: #eef4f7; border-color: #cfe0e8; color: var(--brand-deep); }
+    .stat-chip.info b { color: var(--brand-deep); }
+    .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ==== Graphiques (SVG + tooltip HTML superposé) ==== */
+    .chart-wrap { position: relative; }
+    .chart-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .chart-svg text { fill: var(--muted); font-size: 10.5px; font-family: inherit; }
+    .chart-hit { fill: transparent; cursor: crosshair; }
+    .chart-tooltip {
+      position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none;
+      background: var(--ink); color: #fff; font-size: .76rem; line-height: 1.5;
+      padding: 8px 11px; border-radius: 8px; white-space: nowrap;
+      transform: translate(-50%, calc(-100% - 12px)); opacity: 0; transition: opacity .1s ease-out;
+      box-shadow: 0 4px 14px rgb(29 40 51 / .25);
+    }
+    .chart-tooltip.show { opacity: 1; }
+    .chart-tooltip .tt-title { font-weight: 650; margin-bottom: 3px; }
+    .chart-tooltip .tt-row { display: flex; align-items: center; gap: 6px; }
+    .chart-tooltip .tt-dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+    .chart-empty { color: var(--muted); font-size: .9rem; padding: 40px 0; text-align: center; }
 
     /* ==== Barres par statut ==== */
     .bar-row {
@@ -134,7 +186,7 @@
     }
     @keyframes grow { from { transform: scaleX(0); } }
 
-    /* Couleurs sémantiques : un statut = une couleur, partout. */
+    /* Couleurs sémantiques : un statut = une couleur, partout (rapports + admin). */
     .st-en_attente { background: var(--amber-bar); }
     .st-payee      { background: var(--green); }
     .st-preparee   { background: var(--brand); }
@@ -148,9 +200,11 @@
     tbody tr:last-child td { border-bottom: 0; }
     tbody tr { transition: background-color .15s ease-out; }
     tbody tr:hover { background: #f6f9fb; }
+    tbody tr.is-current { background: #f6f9fb; font-weight: 600; }
     th { color: var(--muted); font-size: .78rem; font-weight: 650; }
     td { font-size: .9rem; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
     .rank {
       width: 26px; height: 26px; border-radius: 999px;
       display: inline-flex; align-items: center; justify-content: center;
@@ -158,6 +212,12 @@
       background: #eef2f5; font-variant-numeric: tabular-nums;
     }
     tr:first-child .rank { background: var(--brand); color: #fff; }
+    .tag-now {
+      display: inline-block; font-size: .68rem; font-weight: 650; color: #fff;
+      background: var(--brand-deep); border-radius: 999px; padding: 1px 8px; margin-left: 6px;
+    }
+    .amt-pos { color: var(--green); }
+    .amt-neg { color: var(--red); }
 
     /* ==== Badges d'état de stock ==== */
     .badge {
@@ -173,14 +233,14 @@
     .empty strong { color: var(--ink); font-weight: 600; }
 
     footer {
-      max-width: 1080px; margin: 0 auto; padding: 26px 24px 30px;
+      max-width: 1200px; margin: 0 auto; padding: 26px 24px 30px;
       color: var(--muted); font-size: .78rem;
     }
 
     /* ==== Adaptations ==== */
     @media (max-width: 900px) {
       .kpis { grid-template-columns: repeat(2, 1fr); }
-      .columns { grid-template-columns: 1fr; }
+      .columns, .columns-even { grid-template-columns: 1fr; }
     }
     @media (max-width: 480px) {
       .kpis { grid-template-columns: 1fr; }
@@ -191,7 +251,7 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .bar-fill { animation: none; }
-      tbody tr, .back, .print-btn { transition: none; }
+      tbody tr, .back, .print-btn, .chart-tooltip { transition: none; }
     }
 
     /* ==== Impression (un rapport, ça s'imprime) ==== */
@@ -201,8 +261,9 @@
       .back, .print-btn { display: none; }
       .stamp { color: var(--muted); }
       .kpi, .panel { box-shadow: none; break-inside: avoid; }
-      .columns { grid-template-columns: 1fr; }
+      .columns, .columns-even { grid-template-columns: 1fr; }
       tbody tr:hover { background: none; }
+      .chart-tooltip { display: none; }
     }
   </style>
 </head>
@@ -254,9 +315,115 @@
       </div>
     </section>
 
+    <!-- Évolution des ventes -->
+    <section aria-labelledby="titre-ventes" style="margin-top: 28px;">
+      <div class="panel">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title" id="titre-ventes">Évolution des ventes</div>
+            <div class="chart-sub">Chiffre d'affaires mensuel et volume de commandes</div>
+          </div>
+          <div class="legend">
+            <span class="legend-item" style="color: var(--teal);"><span class="legend-dot"></span>CA (F)</span>
+            <span class="legend-item" style="color: var(--indigo);"><span class="legend-dash"></span>Commandes</span>
+          </div>
+        </div>
+        <div class="chart-wrap" id="chart-ventes"></div>
+        <table class="sr-only">
+          <caption>Chiffre d'affaires généré et nombre de commandes, par mois</caption>
+          <thead><tr><th>Mois</th><th>CA généré (F)</th><th>Commandes</th></tr></thead>
+          <tbody>
+            {% for m in data.monthly %}
+              <tr><td>{{ m.label }}</td><td>{{ m.ca }}</td><td>{{ m.commandes }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Évolution des stocks + Gains & Pertes -->
+    <div class="columns-even" style="margin-top: 28px;">
+      <section aria-labelledby="titre-stocks-evo">
+        <div class="panel">
+          <div class="chart-head">
+            <div>
+              <div class="chart-title" id="titre-stocks-evo">Évolution des stocks</div>
+              <div class="chart-sub">Stock initial vs stock actuel par produit</div>
+            </div>
+            <div class="legend">
+              <span class="legend-item" style="color: var(--mint);"><span class="legend-dot"></span>Initial</span>
+              <span class="legend-item" style="color: var(--teal);"><span class="legend-dot"></span>Actuel</span>
+              <span class="legend-item" style="color: var(--amber-bar);"><span class="legend-dot"></span>Vendu</span>
+            </div>
+          </div>
+          {% if data.stock_evolution %}
+            <div class="chart-wrap" id="chart-stocks"></div>
+            <table class="sr-only">
+              <caption>Stock initial déduit, stock actuel et quantité vendue, par produit</caption>
+              <thead><tr><th>Produit</th><th>Initial</th><th>Actuel</th><th>Vendu</th></tr></thead>
+              <tbody>
+                {% for p in data.stock_evolution %}
+                  <tr><td>{{ p.name }}</td><td>{{ p.initial }}</td><td>{{ p.actuel }}</td><td>{{ p.vendu }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="chart-empty">Aucun produit actif pour le moment.</p>
+          {% endif %}
+        </div>
+      </section>
+
+      <section aria-labelledby="titre-gp">
+        <div class="panel">
+          <div class="chart-head">
+            <div>
+              <div class="chart-title" id="titre-gp">Gains &amp; Pertes</div>
+              <div class="chart-sub">Résultat mensuel réalisé</div>
+            </div>
+            <span class="stat-chip {% if data.cumul.net >= 0 %}pos{% else %}neg{% endif %}">
+              Net
+              <b>{% if data.cumul.net >= 0 %}+{% endif %}{{ data.cumul.net|intcomma }} F</b>
+            </span>
+          </div>
+          <div class="chart-wrap" id="chart-gp"></div>
+          <div class="table-scroll" style="margin-top: 8px;">
+            <table>
+              <caption class="sr-only">Gains et pertes réalisés par mois</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Mois</th>
+                  <th scope="col" class="num">Gains</th>
+                  <th scope="col" class="num">Pertes</th>
+                  <th scope="col" class="num">Résultat net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in data.monthly %}
+                  <tr class="{% if m.is_current %}is-current{% endif %}">
+                    <td>{{ m.label }}{% if m.is_current %}<span class="tag-now">Actuel</span>{% endif %}</td>
+                    <td class="num amt-pos">+{{ m.gains|intcomma }} F</td>
+                    <td class="num amt-neg">−{{ m.pertes|intcomma }} F</td>
+                    <td class="num {% if m.net >= 0 %}amt-pos{% else %}amt-neg{% endif %}">{% if m.net >= 0 %}+{% endif %}{{ m.net|intcomma }} F</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>Total</td>
+                  <td class="num amt-pos">+{{ data.cumul.gains|intcomma }} F</td>
+                  <td class="num amt-neg">−{{ data.cumul.pertes|intcomma }} F</td>
+                  <td class="num {% if data.cumul.net >= 0 %}amt-pos{% else %}amt-neg{% endif %}">{% if data.cumul.net >= 0 %}+{% endif %}{{ data.cumul.net|intcomma }} F</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <!-- Alerte stock bas -->
     {% if data.produits_stock_bas %}
-      <section aria-labelledby="titre-stock">
+      <section aria-labelledby="titre-stock" style="margin-top: 32px;">
         <h2 id="titre-stock">Alerte stock bas <span class="count">{{ data.nb_stock_bas }}</span></h2>
         <div class="panel tinted table-scroll">
           <table>
@@ -343,8 +510,404 @@
         </div>
       </section>
     </div>
+
+    <!-- Cumul mensuel -->
+    <section aria-labelledby="titre-cumul" style="margin-top: 32px;">
+      <div class="panel">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title" id="titre-cumul">Cumul mensuel</div>
+            <div class="chart-sub">Chiffre d'affaires, gains et pertes cumulés mois par mois</div>
+          </div>
+          <div class="chip-row">
+            <span class="stat-chip info">CA cumulé<b>{{ data.cumul.ca|intcomma }} F</b></span>
+            <span class="stat-chip pos">Gains cumulés<b>{{ data.cumul.gains|intcomma }} F</b></span>
+            <span class="stat-chip neg">Pertes cumulées<b>{{ data.cumul.pertes|intcomma }} F</b></span>
+            <span class="stat-chip {% if data.cumul.net >= 0 %}pos{% else %}neg{% endif %}">Résultat net<b>{% if data.cumul.net >= 0 %}+{% endif %}{{ data.cumul.net|intcomma }} F</b></span>
+          </div>
+        </div>
+        <div class="legend" style="margin-bottom: 10px;">
+          <span class="legend-item" style="color: var(--brand-deep);"><span class="legend-dot"></span>CA cumulé</span>
+          <span class="legend-item" style="color: var(--green);"><span class="legend-dot"></span>Gains cumulés</span>
+          <span class="legend-item" style="color: var(--red);"><span class="legend-dot"></span>Pertes cumulées</span>
+        </div>
+        <div class="chart-wrap" id="chart-cumul"></div>
+        <div class="table-scroll" style="margin-top: 18px;">
+          <table>
+            <caption class="sr-only">Cumul mensuel du chiffre d'affaires, des gains et des pertes</caption>
+            <thead>
+              <tr>
+                <th scope="col">Mois</th>
+                <th scope="col" class="num">CA du mois</th>
+                <th scope="col" class="num">CA cumulé</th>
+                <th scope="col" class="num">Gains cumulés</th>
+                <th scope="col" class="num">Pertes cumulées</th>
+                <th scope="col" class="num">Résultat net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in data.monthly %}
+                <tr class="{% if m.is_current %}is-current{% endif %}">
+                  <td>{{ m.label }}{% if m.is_current %}<span class="tag-now">Actuel</span>{% endif %}</td>
+                  <td class="num">{{ m.ca|intcomma }} F</td>
+                  <td class="num">{{ m.ca_cumule|intcomma }} F</td>
+                  <td class="num amt-pos">{{ m.gains_cumules|intcomma }} F</td>
+                  <td class="num amt-neg">{{ m.pertes_cumulees|intcomma }} F</td>
+                  <td class="num {% if m.net_cumule >= 0 %}amt-pos{% else %}amt-neg{% endif %}">{% if m.net_cumule >= 0 %}+{% endif %}{{ m.net_cumule|intcomma }} F</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>MTS Group Africa — Prototype e-commerce USSD · Données calculées en temps réel</footer>
+
+  {{ data.monthly|json_script:"data-monthly" }}
+  {{ data.stock_evolution|json_script:"data-stocks" }}
+
+  <script>
+  (function () {
+    "use strict";
+    var SVGNS = "http://www.w3.org/2000/svg";
+
+    /* ---------- Utilitaires partagés ---------- */
+    function el(tag, attrs) {
+      var e = document.createElementNS(SVGNS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+    function fmtFr(n) {
+      return new Intl.NumberFormat("fr-FR").format(Math.round(n));
+    }
+    function fmtCompact(n) {
+      var abs = Math.abs(n);
+      if (abs >= 1000) return (n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1).replace(".0", "") + "k";
+      return String(Math.round(n));
+    }
+    function niceMax(v) {
+      if (v <= 0) return 10;
+      var exp = Math.floor(Math.log10(v));
+      var base = Math.pow(10, exp);
+      var f = v / base, m;
+      if (f <= 1) m = 1; else if (f <= 2) m = 2; else if (f <= 2.5) m = 2.5;
+      else if (f <= 5) m = 5; else m = 10;
+      return m * base;
+    }
+    function ticks(max, count) {
+      var out = [];
+      for (var i = 0; i <= count; i++) out.push(Math.round((max / count) * i));
+      return out;
+    }
+    function readData(id) {
+      var node = document.getElementById(id);
+      return node ? JSON.parse(node.textContent) : [];
+    }
+    /** Coordonnées souris -> pixels relatifs au conteneur (espace de la tooltip HTML). */
+    function pointerPx(evt, wrap) {
+      var rect = wrap.getBoundingClientRect();
+      var cx = evt.touches ? evt.touches[0].clientX : evt.clientX;
+      var cy = evt.touches ? evt.touches[0].clientY : evt.clientY;
+      return { x: cx - rect.left, y: cy - rect.top, w: rect.width, h: rect.height };
+    }
+    function makeTooltip(wrap) {
+      var tt = document.createElement("div");
+      tt.className = "chart-tooltip";
+      wrap.appendChild(tt);
+      return tt;
+    }
+
+    /* ---------- Graphique en courbes (Ventes / Cumul) ---------- */
+    function renderLineChart(containerId, opts) {
+      var host = document.getElementById(containerId);
+      if (!host) return;
+      var labels = opts.labels, series = opts.series;
+      var n = labels.length;
+      if (!n) { host.innerHTML = '<p class="chart-empty">Pas encore de données.</p>'; return; }
+
+      var vw = opts.vw || 860, vh = opts.vh || 300;
+      var pad = { l: 52, r: opts.dualAxis ? 52 : 20, t: 20, b: 34 };
+      var innerW = vw - pad.l - pad.r, innerH = vh - pad.t - pad.b;
+
+      var leftSeries = series.filter(function (s) { return s.axis !== "right"; });
+      var rightSeries = series.filter(function (s) { return s.axis === "right"; });
+      var leftMax = niceMax(Math.max.apply(null, leftSeries.reduce(function (a, s) { return a.concat(s.values); }, [0])));
+      var rightMax = rightSeries.length
+        ? niceMax(Math.max.apply(null, rightSeries.reduce(function (a, s) { return a.concat(s.values); }, [0])))
+        : leftMax;
+
+      function xAt(i) { return pad.l + (n === 1 ? 0 : (innerW * i) / (n - 1)); }
+      function yAt(v, max) { return pad.t + innerH - (innerH * v) / (max || 1); }
+
+      var svg = el("svg", { class: "chart-svg", viewBox: "0 0 " + vw + " " + vh, role: "img", "aria-hidden": "true" });
+
+      // Grille + axe gauche
+      var leftTicks = ticks(leftMax, 4);
+      leftTicks.forEach(function (t) {
+        var y = yAt(t, leftMax);
+        svg.appendChild(el("line", { x1: pad.l, x2: vw - pad.r, y1: y, y2: y, stroke: "#edf1f4", "stroke-width": 1 }));
+        var txt = el("text", { x: pad.l - 8, y: y + 3, "text-anchor": "end" });
+        txt.textContent = fmtCompact(t);
+        svg.appendChild(txt);
+      });
+      if (opts.dualAxis) {
+        // Les repères de l'axe droit occupent les MÊMES lignes horizontales que
+        // l'axe gauche (0/25/50/75/100 % de la hauteur) ; seule la valeur affichée
+        // change d'échelle (celle de l'axe droit).
+        for (var ri = 0; ri <= 4; ri++) {
+          var y = yAt((leftMax / 4) * ri, leftMax || 1);
+          var txt = el("text", { x: vw - pad.r + 8, y: y + 3, "text-anchor": "start" });
+          txt.textContent = fmtCompact((rightMax / 4) * ri);
+          svg.appendChild(txt);
+        }
+      }
+      // Étiquettes des mois
+      labels.forEach(function (lab, i) {
+        var txt = el("text", { x: xAt(i), y: vh - pad.b + 18, "text-anchor": "middle" });
+        txt.textContent = lab;
+        svg.appendChild(txt);
+      });
+
+      // Tracés (aire + ligne) par série
+      series.forEach(function (s) {
+        var max = s.axis === "right" ? rightMax : leftMax;
+        var pts = s.values.map(function (v, i) { return [xAt(i), yAt(v, max)]; });
+        if (s.area) {
+          var top = "M" + pts.map(function (p) { return p[0] + "," + p[1]; }).join(" L");
+          var bottom = " L" + pad.l + "," + (pad.t + innerH) + " Z";
+          var areaId = "grad-" + containerId + "-" + s.key;
+          var defs = el("defs", {});
+          var grad = el("linearGradient", { id: areaId, x1: "0", y1: "0", x2: "0", y2: "1" });
+          var stop1 = el("stop", { offset: "0%", "stop-color": s.color, "stop-opacity": "0.22" });
+          var stop2 = el("stop", { offset: "100%", "stop-color": s.color, "stop-opacity": "0" });
+          grad.appendChild(stop1); grad.appendChild(stop2); defs.appendChild(grad);
+          svg.appendChild(defs);
+          svg.appendChild(el("path", { d: top + bottom, fill: "url(#" + areaId + ")" }));
+        }
+        var linePath = "M" + pts.map(function (p) { return p[0] + "," + p[1]; }).join(" L");
+        var lineAttrs = { d: linePath, fill: "none", stroke: s.color, "stroke-width": 2.25, "stroke-linejoin": "round", "stroke-linecap": "round" };
+        if (s.dash) lineAttrs["stroke-dasharray"] = "5 4";
+        svg.appendChild(el("path", lineAttrs));
+      });
+
+      // Curseur + points (masqués par défaut, affichés au survol)
+      var crosshair = el("line", { x1: 0, x2: 0, y1: pad.t, y2: pad.t + innerH, stroke: "#c7d0d8", "stroke-width": 1, "stroke-dasharray": "3 3", opacity: 0 });
+      svg.appendChild(crosshair);
+      var dots = series.map(function (s) {
+        var c = el("circle", { r: 4.5, fill: "#fff", stroke: s.color, "stroke-width": 2.25, opacity: 0 });
+        svg.appendChild(c);
+        return c;
+      });
+
+      var hit = el("rect", { class: "chart-hit", x: pad.l, y: pad.t, width: innerW, height: innerH });
+      svg.appendChild(hit);
+      host.innerHTML = "";
+      host.appendChild(svg);
+      var tooltip = makeTooltip(host);
+
+      function showAt(i, px) {
+        var x = xAt(i);
+        crosshair.setAttribute("x1", x); crosshair.setAttribute("x2", x); crosshair.setAttribute("opacity", 1);
+        var html = '<div class="tt-title">' + labels[i] + "</div>";
+        series.forEach(function (s, si) {
+          var max = s.axis === "right" ? rightMax : leftMax;
+          var y = yAt(s.values[i], max);
+          dots[si].setAttribute("cx", x); dots[si].setAttribute("cy", y); dots[si].setAttribute("opacity", 1);
+          var val = s.unit === "count" ? fmtFr(s.values[i]) : fmtFr(s.values[i]) + " F";
+          html += '<div class="tt-row"><span class="tt-dot" style="background:' + s.color + '"></span>' + s.label + " : <b>" + val + "</b></div>";
+        });
+        tooltip.innerHTML = html;
+        tooltip.classList.add("show");
+        var scale = px.w / vw;
+        tooltip.style.left = (x * scale) + "px";
+        tooltip.style.top = (yAt(Math.max.apply(null, series.map(function (s) { return s.values[i]; })), leftMax) * scale) + "px";
+      }
+      function hide() {
+        crosshair.setAttribute("opacity", 0);
+        dots.forEach(function (d) { d.setAttribute("opacity", 0); });
+        tooltip.classList.remove("show");
+      }
+      function onMove(evt) {
+        var px = pointerPx(evt, host);
+        var scale = vw / px.w;
+        var userX = px.x * scale;
+        var i = Math.round(((userX - pad.l) / innerW) * (n - 1));
+        i = Math.max(0, Math.min(n - 1, i));
+        showAt(i, px);
+      }
+      hit.addEventListener("mousemove", onMove);
+      hit.addEventListener("touchmove", function (e) { onMove(e); e.preventDefault(); }, { passive: false });
+      hit.addEventListener("mouseleave", hide);
+      hit.addEventListener("touchend", hide);
+    }
+
+    /* ---------- Graphique en barres groupées (Évolution des stocks) ---------- */
+    function shortLabel(name) {
+      var m = name.match(/^([^\d]+)/);
+      var base = (m ? m[1] : name).trim();
+      return base.length > 10 ? base.slice(0, 9) + "…" : base;
+    }
+    function renderStockBars(containerId, data) {
+      var host = document.getElementById(containerId);
+      if (!host || !data.length) return;
+      var vw = 620, vh = 280;
+      var pad = { l: 34, r: 10, t: 16, b: 34 };
+      var innerW = vw - pad.l - pad.r, innerH = vh - pad.t - pad.b;
+      var n = data.length;
+      var groupW = innerW / n;
+      var barW = Math.min(16, (groupW - 12) / 3);
+      var maxV = niceMax(Math.max.apply(null, data.reduce(function (a, d) { return a.concat([d.initial, d.actuel, d.vendu]); }, [0])));
+      function yAt(v) { return pad.t + innerH - (innerH * v) / (maxV || 1); }
+
+      var svg = el("svg", { class: "chart-svg", viewBox: "0 0 " + vw + " " + vh, role: "img", "aria-hidden": "true" });
+      ticks(maxV, 4).forEach(function (t) {
+        var y = yAt(t);
+        svg.appendChild(el("line", { x1: pad.l, x2: vw - pad.r, y1: y, y2: y, stroke: "#edf1f4", "stroke-width": 1 }));
+        var txt = el("text", { x: pad.l - 8, y: y + 3, "text-anchor": "end" });
+        txt.textContent = fmtCompact(t);
+        svg.appendChild(txt);
+      });
+
+      var highlight = el("rect", { x: 0, y: pad.t, width: groupW, height: innerH, fill: "#eef2f5", opacity: 0 });
+      svg.appendChild(highlight);
+
+      var keys = [["initial", "var(--mint)", "#a8d5c2"], ["actuel", "var(--teal)", "#0f766e"], ["vendu", "var(--amber-bar)", "#d97706"]];
+      data.forEach(function (d, i) {
+        var groupX = pad.l + i * groupW;
+        keys.forEach(function (k, ki) {
+          var v = d[k[0]];
+          var barX = groupX + (groupW - 3 * barW) / 2 + ki * barW;
+          var y = yAt(v);
+          svg.appendChild(el("rect", {
+            x: barX + 1, y: y, width: Math.max(barW - 2, 1), height: Math.max(pad.t + innerH - y, 0),
+            fill: k[2], rx: 2,
+          }));
+        });
+        var txt = el("text", { x: groupX + groupW / 2, y: vh - pad.b + 18, "text-anchor": "middle" });
+        txt.textContent = shortLabel(d.name);
+        svg.appendChild(txt);
+      });
+
+      var hit = el("rect", { class: "chart-hit", x: pad.l, y: pad.t, width: innerW, height: innerH });
+      svg.appendChild(hit);
+      host.innerHTML = "";
+      host.appendChild(svg);
+      var tooltip = makeTooltip(host);
+
+      function onMove(evt) {
+        var px = pointerPx(evt, host);
+        var scale = vw / px.w;
+        var userX = px.x * scale;
+        var i = Math.floor((userX - pad.l) / groupW);
+        i = Math.max(0, Math.min(n - 1, i));
+        var d = data[i];
+        highlight.setAttribute("x", pad.l + i * groupW);
+        highlight.setAttribute("opacity", 1);
+        tooltip.innerHTML =
+          '<div class="tt-title">' + d.name + "</div>" +
+          '<div class="tt-row"><span class="tt-dot" style="background:#a8d5c2"></span>Initial : <b>' + fmtFr(d.initial) + "</b></div>" +
+          '<div class="tt-row"><span class="tt-dot" style="background:#0f766e"></span>Actuel : <b>' + fmtFr(d.actuel) + "</b></div>" +
+          '<div class="tt-row"><span class="tt-dot" style="background:#d97706"></span>Vendu : <b>' + fmtFr(d.vendu) + "</b></div>";
+        tooltip.classList.add("show");
+        var scaleOut = px.w / vw;
+        tooltip.style.left = ((pad.l + i * groupW + groupW / 2) * scaleOut) + "px";
+        tooltip.style.top = (pad.t * scaleOut) + "px";
+      }
+      function hide() { highlight.setAttribute("opacity", 0); tooltip.classList.remove("show"); }
+      hit.addEventListener("mousemove", onMove);
+      hit.addEventListener("touchmove", function (e) { onMove(e); e.preventDefault(); }, { passive: false });
+      hit.addEventListener("mouseleave", hide);
+      hit.addEventListener("touchend", hide);
+    }
+
+    /* ---------- Graphique en barres divergentes (Gains & Pertes) ---------- */
+    function renderDivergingBars(containerId, monthly) {
+      var host = document.getElementById(containerId);
+      if (!host || !monthly.length) return;
+      var vw = 620, vh = 280;
+      var pad = { l: 46, r: 14, t: 16, b: 26 };
+      var innerW = vw - pad.l - pad.r, innerH = vh - pad.t - pad.b;
+      var n = monthly.length;
+      var slotW = innerW / n;
+      var baselineFrac = 0.76; // 76% de la hauteur pour les gains, 24% pour les pertes
+      var baseY = pad.t + innerH * baselineFrac;
+      var gainsMax = niceMax(Math.max.apply(null, monthly.map(function (m) { return m.gains; }).concat([0])));
+      var pertesMax = niceMax(Math.max.apply(null, monthly.map(function (m) { return m.pertes; }).concat([0])));
+      function yGain(v) { return baseY - (baseY - pad.t) * (v / (gainsMax || 1)); }
+      function yPerte(v) { return baseY + (pad.t + innerH - baseY) * (v / (pertesMax || 1)); }
+
+      var svg = el("svg", { class: "chart-svg", viewBox: "0 0 " + vw + " " + vh, role: "img", "aria-hidden": "true" });
+      svg.appendChild(el("line", { x1: pad.l, x2: vw - pad.r, y1: baseY, y2: baseY, stroke: "#c7d0d8", "stroke-width": 1 }));
+
+      var barW = Math.min(28, slotW * 0.5);
+      monthly.forEach(function (m, i) {
+        var cx = pad.l + slotW * i + slotW / 2;
+        var yG = yGain(m.gains);
+        svg.appendChild(el("rect", { x: cx - barW / 2, y: yG, width: barW, height: Math.max(baseY - yG, 0), fill: "#2e7d5b", rx: 2 }));
+        var yP = yPerte(m.pertes);
+        svg.appendChild(el("rect", { x: cx - barW / 2, y: baseY, width: barW, height: Math.max(yP - baseY, 0), fill: "#b42318", rx: 2 }));
+        var txt = el("text", { x: cx, y: vh - pad.b + 18, "text-anchor": "middle" });
+        txt.textContent = m.label;
+        svg.appendChild(txt);
+      });
+
+      var hit = el("rect", { class: "chart-hit", x: pad.l, y: pad.t, width: innerW, height: innerH });
+      svg.appendChild(hit);
+      host.innerHTML = "";
+      host.appendChild(svg);
+      var tooltip = makeTooltip(host);
+
+      function onMove(evt) {
+        var px = pointerPx(evt, host);
+        var scale = vw / px.w;
+        var userX = px.x * scale;
+        var i = Math.floor((userX - pad.l) / slotW);
+        i = Math.max(0, Math.min(n - 1, i));
+        var m = monthly[i];
+        tooltip.innerHTML =
+          '<div class="tt-title">' + m.label + "</div>" +
+          '<div class="tt-row"><span class="tt-dot" style="background:#2e7d5b"></span>Gains : <b>+' + fmtFr(m.gains) + " F</b></div>" +
+          '<div class="tt-row"><span class="tt-dot" style="background:#b42318"></span>Pertes : <b>&minus;' + fmtFr(m.pertes) + " F</b></div>";
+        tooltip.classList.add("show");
+        var scaleOut = px.w / vw;
+        tooltip.style.left = ((pad.l + slotW * i + slotW / 2) * scaleOut) + "px";
+        tooltip.style.top = (baseY * scaleOut) + "px";
+      }
+      function hide() { tooltip.classList.remove("show"); }
+      hit.addEventListener("mousemove", onMove);
+      hit.addEventListener("touchmove", function (e) { onMove(e); e.preventDefault(); }, { passive: false });
+      hit.addEventListener("mouseleave", hide);
+      hit.addEventListener("touchend", hide);
+    }
+
+    /* ---------- Construction des 4 graphiques ---------- */
+    var monthly = readData("data-monthly");
+    var stocks = readData("data-stocks");
+
+    renderLineChart("chart-ventes", {
+      labels: monthly.map(function (m) { return m.label; }),
+      dualAxis: true,
+      series: [
+        { key: "ca", label: "CA", unit: "amount", color: "#0f766e", area: true, values: monthly.map(function (m) { return m.ca; }) },
+        { key: "commandes", label: "Commandes", unit: "count", color: "#5b5fc7", dash: true, axis: "right", values: monthly.map(function (m) { return m.commandes; }) },
+      ],
+    });
+
+    renderStockBars("chart-stocks", stocks);
+    renderDivergingBars("chart-gp", monthly);
+
+    renderLineChart("chart-cumul", {
+      labels: monthly.map(function (m) { return m.label; }),
+      vw: 900,
+      series: [
+        { key: "ca_cumule", label: "CA cumulé", unit: "amount", color: "#2e5871", area: true, values: monthly.map(function (m) { return m.ca_cumule; }) },
+        { key: "gains_cumules", label: "Gains cumulés", unit: "amount", color: "#2e7d5b", values: monthly.map(function (m) { return m.gains_cumules; }) },
+        { key: "pertes_cumulees", label: "Pertes cumulées", unit: "amount", color: "#b42318", values: monthly.map(function (m) { return m.pertes_cumulees; }) },
+      ],
+    });
+  })();
+  </script>
 </body>
 </html>
